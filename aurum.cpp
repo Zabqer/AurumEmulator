@@ -1,10 +1,13 @@
 #include <string.h>
+#include <fstream>
+#include <sstream>
 
 #include "log.h"
+#include "config.h"
 
-#define VERSION "0.0.0.2"
+#define VERSION "0.0.0.3"
 
-#define AURUM_DEFAULT_CONFIG_PATH "~/AurumEmulator"
+#define AURUM_DEFAULT_PATH "~/AurumEmulator/"
 
 void help() {
 		log("AurumEmulator help: ");
@@ -12,14 +15,14 @@ void help() {
 		log("  -h -- display this help")
 		log("  --force-call=true|false -- ignore config call log option");
 		log("  --force-debug=true|false -- ignore config debug log option");
-		log("  --config=<path> -- set config path; default - ~/AurumEmulator/")
+		log("  --path=<path> -- set emulator work path; default - ~/AurumEmulator/")
 }
 
 int main(int argc, char** argv) {
 		
 		log("Aurum Emulator / Zabqer / " << VERSION);
 
-		std::string configPath = AURUM_DEFAULT_CONFIG_PATH;
+		std::string configPath = AURUM_DEFAULT_PATH;
 
 		bool* forcecall = NULL;
 		bool* forcedebug = NULL;
@@ -50,7 +53,7 @@ int main(int argc, char** argv) {
 										help();
 										return 1;
 								}
-						} else if (option == "config") {
+						} else if (option == "path") {
 								if (value.length() > 0) {
 										configPath = value;
 								}
@@ -76,10 +79,36 @@ int main(int argc, char** argv) {
 				}
 		}
 
-		//TODO: Config
+		configPath += "/Config.yaml";
+
+		std::ifstream ic(configPath);
+		if (ic.is_open()) {
+				std::stringstream iss;
+				iss << ic.rdbuf();
+				AurumConfigFromYAML(iss.str());
+				ic.close();
+		}
+
+		std::ofstream oc(configPath);
+		if (oc.is_open()) {
+				std::stringstream oss;
+				oss << AurumConfigToYAML();
+				oc << oss.rdbuf();
+				oc.close();
+		} else {
+				logW("Can't open config file for write: " << configPath);
+		}
+
+		if (forcecall)
+				AurumConfig.logging.call = *forcecall;
+
+		if (forcedebug)
+				AurumConfig.logging.debug = *forcedebug;
 
 		delete forcecall;
 		delete forcedebug;
+
+		//TODO: machines and components
 
 		return 0;
 }

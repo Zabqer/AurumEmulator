@@ -1,7 +1,7 @@
 CC=ccache g++
 CFLAGS=-c -Wall
-LDFLAGS=
-SOURCES=aurum.cpp
+LDFLAGS=-lyaml-cpp
+SOURCES=aurum.cpp config.cpp
 EXECUTABLE=AurumEmulator
 
 OBJECTS=$(SOURCES:.cpp=.o)
@@ -24,5 +24,5 @@ clean:
 		
 _end:
 		@echo -e "\x1b[35m<================> Running [AurumEmulator] <===============>\x1b[0m"
-		@./$(EXECUTABLE) --config=/home/AurumEmulator
+		@./$(EXECUTABLE) --path=./Env/
 		@echo -e "\x1b[35m<=================> End [AurumEmulator] <==================>\x1b[0m"
