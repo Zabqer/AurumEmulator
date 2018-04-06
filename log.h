@@ -5,4 +5,6 @@
 
 #define log(msg) std::cout << msg << std::endl;
 
+#define logE(msg) log("[\x1b[31mError\x1b[0m] " << msg)
+
 #endif

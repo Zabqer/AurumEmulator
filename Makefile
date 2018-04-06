@@ -24,5 +24,5 @@ clean:
 		
 _end:
 		@echo -e "\x1b[35m<================> Running [AurumEmulator] <===============>\x1b[0m"
-		@./$(EXECUTABLE)
+		@./$(EXECUTABLE) --config=/home/AurumEmulator
 		@echo -e "\x1b[35m<=================> End [AurumEmulator] <==================>\x1b[0m"
