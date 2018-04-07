@@ -4,8 +4,9 @@
 
 #include "log.h"
 #include "config.h"
+#include "machine.h"
 
-#define VERSION "0.0.0.3"
+#define VERSION "0.0.0.4"
 
 #define AURUM_DEFAULT_PATH "~/AurumEmulator/"
 
@@ -108,7 +109,23 @@ int main(int argc, char** argv) {
 		delete forcecall;
 		delete forcedebug;
 
-		//TODO: machines and components
+		std::vector<Machine*> machines;
+
+		for (const MachineEntry& entry :AurumConfig.machines) {
+				Machine* machine = new Machine;
+				machines.push_back(machine);
+				machine->load({entry.address});
+				//TODO: components
+		}
+		clock_t deadline = 0;
+		while (machines.size() > 0) {
+				if (deadline <= clock()) {
+						deadline = clock() + 1000000 / 20 * 20;
+						for (Machine* machine :machines) {
+								machine->update();
+						}
+				}
+		}
 
 		return 0;
 }
