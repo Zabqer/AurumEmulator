@@ -8,11 +8,12 @@ struct MachineEntry {
 		std::string address;
 };
 
-static struct {
+inline struct AurumConfig_t {
 		struct {
 				bool call = false;
 				bool debug = false;
 		} logging;
+		bool test = false;
 		std::vector<MachineEntry> machines = {{"computer1_address"}};
 } AurumConfig;
 

@@ -6,7 +6,7 @@
 #include "config.h"
 #include "machine.h"
 
-#define VERSION "0.0.0.4"
+#define VERSION "0.0.0.5"
 
 #define AURUM_DEFAULT_PATH "~/AurumEmulator/"
 
@@ -116,6 +116,7 @@ int main(int argc, char** argv) {
 				machines.push_back(machine);
 				machine->load({entry.address});
 				//TODO: components
+				machine->start();
 		}
 		clock_t deadline = 0;
 		while (machines.size() > 0) {

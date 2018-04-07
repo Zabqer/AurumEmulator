@@ -1,7 +1,17 @@
 #include "component.h"
 
+Component::Component(std::string type): _type(type) {}
+
+std::string Component::address() {
+		return _address;
+}
+
+std::string Component::type() {
+		return _type;
+}
+
 std::string Parameters::getString() {
-		std::string result = boost::any_cast<std::string>(list.front());
+		std::string result = std::any_cast<std::string>(list.front());
 		list.pop();
 		return result;
 }
