@@ -2,22 +2,31 @@
 #include "log.h"
 #include "synchronized.h"
 #include "components/CPU.h"
+#include "components/RAM.h"
 
 const std::string Machine::TYPE = "computer";
 
 Machine::Machine(): Component(TYPE) {
 		state.push(State::Stopped);
-		components.push_back(this);
+		_components.push_back(this);
 }
 
-void Machine::load(Parameters param) {
+void Machine::load(std::string address_) {
 		logC("Machine::load()");
-		_address = param.getString();
+		_address = address_;
 }
 
-void Machine::save(Parameters param) {
+void Machine::save(std::string& address_) {
 		logC("Machine::save()");
-		param.setString(_address);
+		address_ = _address;
+}
+
+void Machine::addComponent(Component* component) {
+		_components.push_back(component);
+}
+
+std::vector<Component*>& Machine::components() {
+		return _components;
 }
 
 bool Machine::start() {
@@ -26,18 +35,24 @@ bool Machine::start() {
 		switch (state.top()) {
 				case State::Stopped:
 						onChanged();
+						//if (!AurumConfig.ignorePower)
 		}
 }
 
 void Machine::onChanged() {
 		maxComponents = 0;
-		for (Component* component :components) {
+		totalMemory = 0;
+		for (Component* component :_components) {
 				if (component->type() == CPU::TYPE) {
 						CPU* cpu = (CPU*) component;
-						maxComponents += 0;
-						architecture = cpu->architecture();
+						//maxComponents += cpu->supportedComponents();
+						//architecture = cpu->architecture();
+				} else if (component->type() == RAM::TYPE) {
+						
+
 				}
 		}
+		maxCallBudget = 1.0;
 }
 
 void Machine::update() {

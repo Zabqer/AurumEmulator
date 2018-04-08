@@ -4,20 +4,17 @@
 #include <string>
 #include <vector>
 
-struct MachineEntry {
-		std::string address;
+#include "machine.h"
+
+struct AurumConfig_t {
+		bool logging_call;
+		bool logging_debug;
 };
 
-inline struct AurumConfig_t {
-		struct {
-				bool call = false;
-				bool debug = false;
-		} logging;
-		bool test = false;
-		std::vector<MachineEntry> machines = {{"computer1_address"}};
-} AurumConfig;
+extern AurumConfig_t AurumConfig;
 
-void AurumConfigFromYAML(std::string);
-std::string AurumConfigToYAML();
+void AurumConfigFromYAML(std::string yaml, std::vector<Machine*>& machines);
+std::string AurumConfigToYAML(std::vector<Machine*>& machines);
+
 
 #endif

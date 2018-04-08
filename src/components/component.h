@@ -3,28 +3,23 @@
 
 #include <string>
 #include <vector>
-#include <queue>
-#include <any>
 
-class Parameters {
-		private:
-				std::queue<std::any> list;
+class Tiered {
+		protected:
+				int _tier;
 		public:
-				Parameters(std::initializer_list<std::any> list_): list(list_) {};
-				std::string getString();
-				void setString(std::string);
+				int tier();
 };
 
 class Component {
 		protected:
 				std::string _address;
 				std::string _type;
+				bool _internal;
 		public:
-				Component(std::string);
+				Component(std::string, bool = false);
 				std::string type();
 				std::string address();
-				virtual void save(Parameters) {};
-				virtual void load(Parameters) {};
 };
 
 #endif
