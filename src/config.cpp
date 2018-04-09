@@ -13,10 +13,10 @@ boost::uuids::random_generator uuid_generator;
 
 AurumConfig_t AurumConfig;
 
-void AurumConfigFromYAML(std::string yaml, std::vector<Machine*>& machines) {
+void AurumConfigFromYAML(std::string yaml, std::vector<Machine*>& machines, bool* forcecall, bool* forcedebug) {
 		YAML::Node root = YAML::Load(yaml);
-		AurumConfig.logging_call = root["logging"]["call"].as<bool>(false);
-		AurumConfig.logging_debug = root["logging"]["debug"].as<bool>(false);
+		AurumConfig.logging_call = forcecall ? *forcecall : 	root["logging"]["call"].as<bool>(false);
+		AurumConfig.logging_debug = forcedebug ? *forcedebug : root["logging"]["debug"].as<bool>(false);
 		try {
 				if (root["machines"].IsSequence()) {
 						for (YAML::Node node :root["machines"]) {
@@ -40,8 +40,10 @@ void AurumConfigFromYAML(std::string yaml, std::vector<Machine*>& machines) {
 		} catch (...) {
 				logW("Failed getting machines and components; using default")
 		}
-
-
+		AurumConfig.cpuComponentCount = root["computer"]["cpuComponentCount"].as<std::array<int, 4>>(std::array<int, 4>{8, 12, 16, 1024});
+		AurumConfig.ignorePower = root["power"]["ignorePower"].as<bool>(false);
+		AurumConfig.tickFrequency = root["power"]["tickFrequency"].as<int>(10);
+		AurumConfig.computerCost = root["power"]["cost"]["computer"].as<double>(0.5);
 }
 
 std::string AurumConfigToYAML(std::vector<Machine*>& machines) {
@@ -68,6 +70,10 @@ std::string AurumConfigToYAML(std::vector<Machine*>& machines) {
 				}
 				root["machines"].push_back(node);
 		}
+		root["computer"]["cpuComponentCount"] = AurumConfig.cpuComponentCount;
+		root["power"]["ingnorePower"] = AurumConfig.ignorePower;
+		root["power"]["tickFrequency"] = AurumConfig.tickFrequency;
+		root["power"]["cost"]["computer"] = AurumConfig.computerCost;
 		YAML::Emitter emitter;
 		emitter << root;
 		return emitter.c_str();

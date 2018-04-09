@@ -6,7 +6,7 @@
 #include "config.h"
 #include "machine.h"
 
-#define VERSION "0.0.0.6"
+#define VERSION "0.0.0.7"
 
 #define AURUM_DEFAULT_PATH "~/AurumEmulator/"
 
@@ -88,20 +88,14 @@ int main(int argc, char** argv) {
 		if (ic.is_open()) {
 				std::stringstream iss;
 				iss << ic.rdbuf();
-				AurumConfigFromYAML(iss.str(), machines);
+				AurumConfigFromYAML(iss.str(), machines, forcecall, forcedebug);
 				ic.close();
 		}
-
-		if (forcecall)
-				AurumConfig.logging_call = *forcecall;
-
-		if (forcedebug)
-				AurumConfig.logging_debug = *forcedebug;
 
 		delete forcecall;
 		delete forcedebug;
 
-		/*std::ofstream oc(configPath);
+		std::ofstream oc(configPath+"_");
 		if (oc.is_open()) {
 				std::stringstream oss;
 				oss << AurumConfigToYAML(machines);
@@ -109,7 +103,11 @@ int main(int argc, char** argv) {
 				oc.close();
 		} else {
 				logW("Can't open config file for write: " << configPath);
-		}*/
+		}
+				
+		for (Machine* machine :machines) {
+				machine->start();
+		}
 
 		clock_t deadline = 0;
 		while (machines.size() > 0) {

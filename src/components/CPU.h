@@ -16,6 +16,7 @@ class CPU: public Component, Tiered {
 				void save(int&, std::string&);
 				void load(int, std::string);
 				Architecture* architecture();
+				int supportedComponents();
 };
 
 #endif

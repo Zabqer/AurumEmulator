@@ -14,12 +14,21 @@ class Machine: public Component {
 				std::stack<State> state;
 				std::recursive_mutex state_mutex;
 				std::vector<Component*> _components;
+				size_t componentCount = 0;
 				Architecture* architecture;
 				size_t maxComponents = 0;
 				size_t totalMemory = 0;
-				size_t usedMmory = 0;
+				size_t usedMemory = 0;
+				size_t energyBuffer = 9999; //For testing
+				time_t _uptime;
+				time_t remainingPause = 0;
+				time_t remainIdle = 0;
 				double maxCallBudget;
+				State switchTo(State);
 				void onChanged();
+				bool init();
+				void crash(std::string);
+				void beep(std::string);
 		public:
 				static const std::string TYPE;
 				Machine();
