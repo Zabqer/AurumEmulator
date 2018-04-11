@@ -8,20 +8,20 @@ CPU::CPU(): Component(TYPE, true) {
 		logC("CPU::CPU()");
 }
 
-void CPU::save(int& tier, std::string& architectureName) {
+void CPU::save(int& tier_, std::string& architectureName_) {
 		logC("CPU::save()");
-		tier = _tier;
-		architectureName = _architectureName;
+		tier_ = _tier;
+		architectureName_ = _architectureName;
 }
 
-void CPU::load(int tier, std::string architectureName) {
+void CPU::load(int tier_, std::string architectureName_) {
 		logC("CPU::load()");
-		_tier = tier;
-		_architectureName = architectureName;
-		if (Architecture::byName.count(architectureName) > 0) {
-				_architecture = Architecture::byName[architectureName]->create();
+		_tier = tier_;
+		_architectureName = architectureName_;
+		if (Architecture::byName.count(_architectureName) > 0) {
+				_architecture = Architecture::byName[_architectureName]->create();
 		} else {
-				logE("Unknown architecture '" << architectureName << "'")
+				logE("Unknown architecture '" << _architectureName << "'")
 		}
 }
 
@@ -32,5 +32,10 @@ Architecture* CPU::architecture() {
 
 int CPU::supportedComponents() {
 		logC("CPU::supportedComponents()");
-		return AurumConfig.cpuComponentCount[_tier == -1 ? 3 : _tier - 1];
+		return AurumConfig.cpuComponentCount[_tier];
+}
+
+double CPU::callBudget() {
+		logC("CPU::callBudget()");
+		return AurumConfig.callBudgets[_tier];
 }

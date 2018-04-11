@@ -38,7 +38,7 @@ bool Machine::start() {
 						if (!AurumConfig.ignorePower && energyBuffer < (AurumConfig.computerCost * AurumConfig.tickFrequency)) {
 								crash("No energy");
 								return false;
-						} else if (architecture == NULL || maxComponents == 0) {
+						} else if (!architecture || maxComponents == 0) {
 								crash("No CPU");
 								beep("-");
 								return false;
@@ -76,20 +76,42 @@ bool Machine::start() {
 void Machine::onChanged() {
 		maxComponents = 0;
 		totalMemory = 0;
+		std::vector<double> callBudgets;
 		for (Component* component :_components) {
 				if (component->type() == CPU::TYPE) {
 						CPU* cpu = (CPU*) component;
 						maxComponents += cpu->supportedComponents();
 						architecture = cpu->architecture();
+						callBudgets.push_back(cpu->callBudget());
 				} else if (component->type() == RAM::TYPE) {
-						
+						RAM* ram = (RAM*) component;
+						totalMemory += ram->amount();
+						callBudgets.push_back(ram->callBudget());
 				}
 		}
-		maxCallBudget = 1.0;
+		if (callBudgets.empty()) {
+				maxCallBudget = 1.0;
+		} else {
+				double sum = 0;
+				for (double callBudget :callBudgets) {
+						sum += callBudget;
+				}
+				maxCallBudget = sum / callBudgets.size();
+		}
 }
 
 bool Machine::init() {
-		
+		logC("Machine::init()");
+		if (!architecture) return false;
+		while (!signals.empty()) {
+				signals.pop();
+		}
+		try {
+				return architecture->initialize();
+		} catch (std::exception ex) {
+				logE("Error while architecture initialization: " << ex.what());
+				return false;
+		}
 }
 
 Machine::State Machine::switchTo(State newState) {
@@ -97,13 +119,14 @@ Machine::State Machine::switchTo(State newState) {
 		synchronized(state_mutex);
 		State oldState = state.top();
 		if (newState == State::Stopping || newState == State::Restarting) {
-				/*while (!signals.empty()) {
-						signals.pop()
-				}*/
+				while (!signals.empty()) {
+						signals.pop();
+				}
 		}
 		state.push(newState);
 		if (newState == State::Yielded || newState == State::SynchronizedReturn) {
 				remainIdle = 0;
+				_log("post!!!")
 				//Post to thread pool
 		}
 		return oldState;

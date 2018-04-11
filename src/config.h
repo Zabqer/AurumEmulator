@@ -11,6 +11,8 @@ struct AurumConfig_t {
 		bool logging_call;
 		bool logging_debug;
 		std::array<int, 4> cpuComponentCount;
+		std::array<double, 3> callBudgets;
+		std::array<int, 6> ramSizes;
 		bool ignorePower;
 		int tickFrequency;
 		double computerCost;

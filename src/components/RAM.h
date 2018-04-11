@@ -5,12 +5,14 @@
 
 #include "component.h"
 
-class RAM: public Component, Tiered {
+class RAM: public Component, CallBudget {
 		public:
 				static const std::string TYPE;
 				RAM();
 				void save(int&);
 				void load(int);
+				size_t amount();
+				double callBudget() override;
 };
 
 #endif

@@ -6,7 +6,7 @@
 #include "config.h"
 #include "machine.h"
 
-#define VERSION "0.0.0.7"
+#define VERSION "0.0.0.8"
 
 #define AURUM_DEFAULT_PATH "~/AurumEmulator/"
 
@@ -95,7 +95,7 @@ int main(int argc, char** argv) {
 		delete forcecall;
 		delete forcedebug;
 
-		std::ofstream oc(configPath+"_");
+		std::ofstream oc(configPath);
 		if (oc.is_open()) {
 				std::stringstream oss;
 				oss << AurumConfigToYAML(machines);

@@ -4,6 +4,7 @@
 #include <stack>
 #include <mutex>
 #include <vector>
+#include <queue>
 
 #include "components/component.h"
 #include "architectures/architecture.h"
@@ -13,6 +14,7 @@ class Machine: public Component {
 				enum State {Stopped, Starting, Restarting, Stopping, Paused, SynchronizedCall, SynchronizedReturn, Yielded, Sleeping, Running};
 				std::stack<State> state;
 				std::recursive_mutex state_mutex;
+				std::queue<void*> signals; //TODO: make Signal class
 				std::vector<Component*> _components;
 				size_t componentCount = 0;
 				Architecture* architecture;

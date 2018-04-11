@@ -8,6 +8,7 @@
 #include <boost/uuid/uuid_io.hpp>
 
 #include "components/CPU.h"
+#include "components/RAM.h"
 
 boost::uuids::random_generator uuid_generator;
 
@@ -28,6 +29,10 @@ void AurumConfigFromYAML(std::string yaml, std::vector<Machine*>& machines, bool
 												CPU* cpu = new CPU;
 												cpu->load(node["tier"].as<int>(1), node["arch"].as<std::string>("Lua 5.3"));
 												machine->addComponent(cpu);
+										} else if (type == RAM::TYPE) {
+												RAM* ram = new RAM;
+												ram->load(node["tier"].as<int>(1));
+												machine->addComponent(ram);
 										} else {
 												logW("Unsupported component type '" << type << "'; skipping");
 										}
@@ -41,6 +46,8 @@ void AurumConfigFromYAML(std::string yaml, std::vector<Machine*>& machines, bool
 				logW("Failed getting machines and components; using default")
 		}
 		AurumConfig.cpuComponentCount = root["computer"]["cpuComponentCount"].as<std::array<int, 4>>(std::array<int, 4>{8, 12, 16, 1024});
+		AurumConfig.callBudgets = root["computer"]["callBudgets"].as<std::array<double, 3>>(std::array<double, 3>{0.5, 1.0, 1.5});
+		AurumConfig.ramSizes = root["computer"]["ramSizes"].as<std::array<int, 6>>(std::array<int, 6>{192, 256, 384, 512, 768, 1024});
 		AurumConfig.ignorePower = root["power"]["ignorePower"].as<bool>(false);
 		AurumConfig.tickFrequency = root["power"]["tickFrequency"].as<int>(10);
 		AurumConfig.computerCost = root["power"]["cost"]["computer"].as<double>(0.5);
@@ -66,11 +73,21 @@ std::string AurumConfigToYAML(std::vector<Machine*>& machines) {
 								entry["tier"] = tier;
 								entry["arch"] = arch;
 								node["components"].push_back(entry);
+						} else if (component->type() == RAM::TYPE) {
+								RAM* ram = (RAM*) component;
+								int tier;
+								ram->save(tier);
+								YAML::Node entry;
+								entry["type"] = RAM::TYPE;
+								entry["tier"] = tier;
+								node["components"].push_back(entry);
 						}
 				}
 				root["machines"].push_back(node);
 		}
 		root["computer"]["cpuComponentCount"] = AurumConfig.cpuComponentCount;
+		root["computer"]["callBudgest"] = AurumConfig.callBudgets;
+		root["computer"]["ramSizes"] = AurumConfig.ramSizes;
 		root["power"]["ingnorePower"] = AurumConfig.ignorePower;
 		root["power"]["tickFrequency"] = AurumConfig.tickFrequency;
 		root["power"]["cost"]["computer"] = AurumConfig.computerCost;

@@ -21,6 +21,7 @@ class ArchitectureHolderImpl: public ArchitectureHolder {
 class Architecture {
 		public:
 				static std::map<std::string, ArchitectureHolder*> byName;
+				virtual bool initialize() = 0;
 };
 
 #endif

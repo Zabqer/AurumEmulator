@@ -4,7 +4,8 @@
 #include "../architecture.h"
 
 class Lua53Architecture: public Architecture {
-
+		public:
+				bool initialize() override;
 };
 
 #endif
