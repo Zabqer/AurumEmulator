@@ -6,7 +6,7 @@
 #include "config.h"
 #include "machine.h"
 
-#define VERSION "0.0.0.8"
+#define VERSION "0.0.0.9"
 
 #define AURUM_DEFAULT_PATH "~/AurumEmulator/"
 
@@ -22,7 +22,7 @@ void help() {
 int main(int argc, char** argv) {
 		
 		_log("Aurum Emulator / Zabqer / " << VERSION);
-
+		
 		std::string configPath = AURUM_DEFAULT_PATH;
 
 		bool* forcecall = NULL;
@@ -90,6 +90,8 @@ int main(int argc, char** argv) {
 				iss << ic.rdbuf();
 				AurumConfigFromYAML(iss.str(), machines, forcecall, forcedebug);
 				ic.close();
+		} else {
+				AurumConfigFromYAML("", machines, forcecall, forcedebug);
 		}
 
 		delete forcecall;
@@ -106,7 +108,7 @@ int main(int argc, char** argv) {
 		}
 				
 		for (Machine* machine :machines) {
-				machine->start();
+				_log(machine->start());
 		}
 
 		clock_t deadline = 0;

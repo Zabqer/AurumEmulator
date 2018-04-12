@@ -16,6 +16,7 @@ struct AurumConfig_t {
 		bool ignorePower;
 		int tickFrequency;
 		double computerCost;
+		double sleepCostFactor;
 };
 
 extern AurumConfig_t AurumConfig;

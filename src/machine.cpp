@@ -54,7 +54,7 @@ bool Machine::start() {
 								beep("--");
 								return false;
 						} else {
-								switchTo(State::Running);
+								switchTo(State::Starting);
 								_uptime = 0;
 								return true;
 						}
@@ -85,7 +85,7 @@ void Machine::onChanged() {
 						callBudgets.push_back(cpu->callBudget());
 				} else if (component->type() == RAM::TYPE) {
 						RAM* ram = (RAM*) component;
-						totalMemory += ram->amount();
+						totalMemory += ram->amount() * 1024;
 						callBudgets.push_back(ram->callBudget());
 				}
 		}
@@ -107,7 +107,7 @@ bool Machine::init() {
 				signals.pop();
 		}
 		try {
-				return architecture->initialize();
+				return architecture->initialize(this);
 		} catch (std::exception ex) {
 				logE("Error while architecture initialization: " << ex.what());
 				return false;
@@ -126,7 +126,6 @@ Machine::State Machine::switchTo(State newState) {
 		state.push(newState);
 		if (newState == State::Yielded || newState == State::SynchronizedReturn) {
 				remainIdle = 0;
-				_log("post!!!")
 				//Post to thread pool
 		}
 		return oldState;
@@ -138,10 +137,79 @@ void Machine::crash(std::string message) {
 }
 
 void Machine::beep(std::string pattern) {
-
-}
+		logC("Machine::beep()")};
 
 void Machine::update() {
 		logC("Machine::update()");
-		
+		logD(energyBuffer)
+		if (componentCount > maxComponents) {
+				crash("Component Overflow");
+				return;
+		}
+		_uptime += 1;
+		if (remainIdle > 0) {
+				remainIdle -= 1;
+		}
+		callBudget = maxCallBudget;
+		if (_uptime % AurumConfig.tickFrequency == 0) {
+				synchronized(state_mutex);
+				switch(state.top()) {
+						case State::Paused:
+						case State::Restarting:
+						case State::Stopping:
+						case State::Stopped:
+								break;
+						case State::Sleeping:
+								if (remainIdle > 0 && signals.empty()) {
+										if (!tryChangeBuffer(-AurumConfig.computerCost * AurumConfig.sleepCostFactor)) {
+												crash("No Energy");
+												return;
+										}
+										break;
+								}
+						default:
+							if (!tryChangeBuffer(-AurumConfig.computerCost))	{
+									crash("No Energy");
+									return;
+							}
+				}
+		}
+		{
+				synchronized(state_mutex);
+				switch(state.top()) {
+						case State::Starting:
+								switchTo(State::Yielded);
+								break;
+						case State::Restarting:
+								logE("Unhandled: Restarting");
+								break;
+						//case State::Sleeping:
+								
+				}
+		}
+}
+
+bool Machine::tryChangeBuffer(size_t value) {
+		if (energyBuffer + value < 0) {
+				return false;
+		} else {
+				energyBuffer += value;
+				return true;
+		}
+}
+
+size_t Machine::getTotalMemory() {
+		return totalMemory;
+}
+
+void Machine::setTotalMemory(size_t memory) {
+		totalMemory = memory;
+}
+
+size_t Machine::getUsedMemory() {
+		return usedMemory;
+}
+
+void Machine::setUsedMemory(size_t memory) {
+		usedMemory = memory;
 }

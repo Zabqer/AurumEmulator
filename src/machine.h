@@ -25,12 +25,14 @@ class Machine: public Component {
 				time_t _uptime;
 				time_t remainingPause = 0;
 				time_t remainIdle = 0;
+				double callBudget;
 				double maxCallBudget;
 				State switchTo(State);
 				void onChanged();
 				bool init();
 				void crash(std::string);
 				void beep(std::string);
+				bool tryChangeBuffer(size_t);
 		public:
 				static const std::string TYPE;
 				Machine();
@@ -41,6 +43,10 @@ class Machine: public Component {
 				bool stop();
 				void addComponent(Component*);
 				std::vector<Component*>& components();
+				size_t getTotalMemory();
+				void setTotalMemory(size_t);
+				size_t getUsedMemory();
+				void setUsedMemory(size_t);
 };
 
 #endif

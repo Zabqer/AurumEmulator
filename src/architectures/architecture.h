@@ -4,6 +4,7 @@
 #include <map>
 
 class Architecture;
+class Machine;
 
 class ArchitectureHolder {
 		public:
@@ -21,7 +22,7 @@ class ArchitectureHolderImpl: public ArchitectureHolder {
 class Architecture {
 		public:
 				static std::map<std::string, ArchitectureHolder*> byName;
-				virtual bool initialize() = 0;
+				virtual bool initialize(Machine*) = 0;
 };
 
 #endif

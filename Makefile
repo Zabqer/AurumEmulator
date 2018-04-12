@@ -1,6 +1,6 @@
 CC=ccache g++
 CFLAGS=-c -Wall -std=c++17
-LDFLAGS=-lyaml-cpp
+LDFLAGS=-lyaml-cpp -ldl
 SOURCES=$(shell find src/ -name "*.cpp")
 EXECUTABLE=AurumEmulator
 

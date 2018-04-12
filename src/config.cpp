@@ -16,8 +16,8 @@ AurumConfig_t AurumConfig;
 
 void AurumConfigFromYAML(std::string yaml, std::vector<Machine*>& machines, bool* forcecall, bool* forcedebug) {
 		YAML::Node root = YAML::Load(yaml);
-		AurumConfig.logging_call = forcecall ? *forcecall : 	root["logging"]["call"].as<bool>(false);
-		AurumConfig.logging_debug = forcedebug ? *forcedebug : root["logging"]["debug"].as<bool>(false);
+		AurumConfig.logging_call = !forcecall ?	root["logging"]["call"].as<bool>(false) : *forcecall;
+		AurumConfig.logging_debug = !forcedebug ? root["logging"]["debug"].as<bool>(false) : *forcedebug;
 		try {
 				if (root["machines"].IsSequence()) {
 						for (YAML::Node node :root["machines"]) {
@@ -51,6 +51,7 @@ void AurumConfigFromYAML(std::string yaml, std::vector<Machine*>& machines, bool
 		AurumConfig.ignorePower = root["power"]["ignorePower"].as<bool>(false);
 		AurumConfig.tickFrequency = root["power"]["tickFrequency"].as<int>(10);
 		AurumConfig.computerCost = root["power"]["cost"]["computer"].as<double>(0.5);
+		AurumConfig.sleepCostFactor = root["power"]["cost"]["sleepFactor"].as<double>(0.1);
 }
 
 std::string AurumConfigToYAML(std::vector<Machine*>& machines) {
@@ -91,6 +92,7 @@ std::string AurumConfigToYAML(std::vector<Machine*>& machines) {
 		root["power"]["ingnorePower"] = AurumConfig.ignorePower;
 		root["power"]["tickFrequency"] = AurumConfig.tickFrequency;
 		root["power"]["cost"]["computer"] = AurumConfig.computerCost;
+		root["power"]["cost"]["sleepFactor"] = AurumConfig.sleepCostFactor;
 		YAML::Emitter emitter;
 		emitter << root;
 		return emitter.c_str();
