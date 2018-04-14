@@ -10,6 +10,9 @@
 struct AurumConfig_t {
 		bool logging_call;
 		bool logging_debug;
+		int threads;
+		double timeout;
+		double startupDelay;
 		std::array<int, 4> cpuComponentCount;
 		std::array<double, 3> callBudgets;
 		std::array<int, 6> ramSizes;

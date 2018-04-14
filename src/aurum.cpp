@@ -6,7 +6,7 @@
 #include "config.h"
 #include "machine.h"
 
-#define VERSION "0.0.0.9"
+#define VERSION "0.0.0.10"
 
 #define AURUM_DEFAULT_PATH "~/AurumEmulator/"
 
@@ -21,7 +21,7 @@ void help() {
 
 int main(int argc, char** argv) {
 		
-		_log("Aurum Emulator / Zabqer / " << VERSION);
+		_log("Aurum Emulator / Zabqer / " VERSION);
 		
 		std::string configPath = AURUM_DEFAULT_PATH;
 
@@ -108,7 +108,7 @@ int main(int argc, char** argv) {
 		}
 				
 		for (Machine* machine :machines) {
-				_log(machine->start());
+				machine->start();
 		}
 
 		clock_t deadline = 0;

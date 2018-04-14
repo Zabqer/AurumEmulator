@@ -4,9 +4,16 @@
 #include "components/CPU.h"
 #include "components/RAM.h"
 
+#include <thread>
+#include <boost/asio/post.hpp>
+
 const std::string Machine::TYPE = "computer";
 
+//TODO: config `threads` value
+boost::asio::thread_pool Machine::threadPool(4);
+
 Machine::Machine(): Component(TYPE) {
+		logC("Machine::Machine()");
 		state.push(State::Stopped);
 		_components.push_back(this);
 }
@@ -22,10 +29,12 @@ void Machine::save(std::string& address_) {
 }
 
 void Machine::addComponent(Component* component) {
+		logC("Machine::addComponent()");
 		_components.push_back(component);
 }
 
 std::vector<Component*>& Machine::components() {
+		logC("Machine::components()");
 		return _components;
 }
 
@@ -35,7 +44,7 @@ bool Machine::start() {
 		switch (state.top()) {
 				case State::Stopped:
 						onChanged();
-						if (!AurumConfig.ignorePower && energyBuffer < (AurumConfig.computerCost * AurumConfig.tickFrequency)) {
+						if (!AurumConfig.ignorePower && energyBuffer < (AurumConfig.computerCost/* * AurumConfig.tickFrequency*/)) {
 								crash("No energy");
 								return false;
 						} else if (!architecture || maxComponents == 0) {
@@ -74,6 +83,7 @@ bool Machine::start() {
 }
 
 void Machine::onChanged() {
+		logC("Machine::onChanged()");
 		maxComponents = 0;
 		totalMemory = 0;
 		std::vector<double> callBudgets;
@@ -119,16 +129,109 @@ Machine::State Machine::switchTo(State newState) {
 		synchronized(state_mutex);
 		State oldState = state.top();
 		if (newState == State::Stopping || newState == State::Restarting) {
-				while (!signals.empty()) {
-						signals.pop();
+				while (!state.empty()) {
+						state.pop();
 				}
 		}
 		state.push(newState);
 		if (newState == State::Yielded || newState == State::SynchronizedReturn) {
 				remainIdle = 0;
-				//Post to thread pool
+				boost::asio::post(threadPool, [this] {
+						std::this_thread::sleep_for(std::chrono::milliseconds((int) AurumConfig.startupDelay * 1000));
+						this->run();
+				});
 		}
 		return oldState;
+}
+
+void Machine::run() {
+		logC("Machine::run()");
+		synchronized(machine_mutex);
+		bool isSynchronizedReturn;
+		{
+				synchronized(state_mutex);
+				if (state.top() != State::Yielded && state.top() != State::SynchronizedReturn) {
+						isSynchronizedReturn = false;
+				} else if (false) { /* Paused? */
+						state.push(State::Paused);
+						isSynchronizedReturn = false;
+				} else {
+						isSynchronizedReturn = switchTo(State::Running) == State::SynchronizedReturn;
+				}
+		}
+		cpuStart = clock();
+		try {
+				ExecutionResult result = architecture->runThreaded(isSynchronizedReturn);
+				synchronized(state_mutex);
+				switch(state.top()) {
+						case State::Running:
+								switch(result.index()) {
+										case 0: {// ExecutionResultSleep
+												synchronized(signals_mutex);
+												int ticks = (std::get<0>(result)).ticks;
+												if (signals.empty() && ticks > 0) {
+														switchTo(State::Sleeping);
+														remainIdle = ticks;
+												} else {
+														switchTo(State::Yielded);
+												}
+												break;
+										}
+										case 1: // ExecutionResultSynchronizedCall
+												switchTo(State::SynchronizedCall);
+												break;
+										case 2: // ExecutionResultShutdown
+												if ((std::get<2>(result)).reboot) {
+														switchTo(State::Restarting);
+												} else {
+														switchTo(State::Stopping);
+												}
+												break;
+										case 3: // ExecutionResultError
+													beep("--");
+													crash((std::get<3>(result).message));
+													break;
+								}
+								break;
+						case State::Paused:
+								state.pop();
+								state.pop();
+								switch (result.index()) {
+										case 0: // ExecutionResultSleep
+												remainIdle = (std::get<0>(result)).ticks;
+												break;
+										case 1: // ExecutionResultSynchronizedCall
+												state.push(State::SynchronizedCall);
+												break;
+										case 2: // ExecutionResultShutdown
+												if ((std::get<2>(result)).reboot) {
+														state.push(State::Restarting);
+												} else {
+														state.push(State::Stopping);
+												}
+												break;
+										case 3: // ExecutionResultError
+												crash((std::get<3>(result)).message);
+												break;
+								}
+								state.push(State::Paused);
+								break;
+						case State::Stopping:
+								while (!state.empty()) {
+										state.pop();
+								}
+								state.push(State::Stopping);
+								break;
+						case State::Restarting:
+								break;
+						default:
+								break;
+				}
+		} catch (std::exception ex) {
+				//TODO: handle exception
+				throw ex;
+		}
+		cpuTotal += clock() - cpuStart;
 }
 
 void Machine::crash(std::string message) {
@@ -141,7 +244,6 @@ void Machine::beep(std::string pattern) {
 
 void Machine::update() {
 		logC("Machine::update()");
-		logD(energyBuffer)
 		if (componentCount > maxComponents) {
 				crash("Component Overflow");
 				return;
@@ -181,21 +283,119 @@ void Machine::update() {
 								switchTo(State::Yielded);
 								break;
 						case State::Restarting:
-								logE("Unhandled: Restarting");
+								close();
+								//erase tmp
+								start();
 								break;
-						//case State::Sleeping:
-								
+						case State::Sleeping:
+								if (remainIdle <= 0 || !signals.empty()) {
+										switchTo(State::Yielded);
+								}
+								break;
+						case State::Paused:
+								if (remainingPause > 0) {
+										remainingPause -= 1;
+								} else {
+										state.pop();
+										switchTo(state.top());
+								}
+								break;
+						case State::SynchronizedCall:
+								switchTo(State::Running);
+								try {
+										inSynchronizedCall = true;
+										architecture->runSynchronized();
+										inSynchronizedCall = false;
+										switch(state.top()) {
+												case State::Running:
+														switchTo(State::SynchronizedReturn);
+														break;
+												case State::Paused:
+														state.pop();
+														state.pop();
+														state.push(State::SynchronizedReturn);
+														state.push(State::Paused);
+														break;
+												case State::Stopping:
+														while (!state.empty()) {
+																state.pop();
+														}
+														state.push(State::Stopping);
+														break;
+												default:
+														break;
+										}
+								} catch (std::exception ex) {
+								//TODO handle exception
+										throw ex;
+								}
+								inSynchronizedCall = false;
+						default:
+								break;
+				}
+		}
+		{
+				synchronized(state_mutex);
+				switch(state.top()) {
+						case State::Stopping: {
+								synchronized(machine_mutex);
+								tryClose();
+						}
+						default:
+								break;
 				}
 		}
 }
 
-bool Machine::tryChangeBuffer(size_t value) {
+bool Machine::tryChangeBuffer(double value) {
+		logC("Machine::tryChangeBuffer()");
 		if (energyBuffer + value < 0) {
 				return false;
 		} else {
 				energyBuffer += value;
 				return true;
 		}
+}
+
+bool Machine::isExecuting() {
+		logC("Machine::isExecuting()");
+		synchronized(state_mutex);
+		for (std::stack<State> cpy = state; !cpy.empty(); cpy.pop()) {
+				if (cpy.top() == State::Running) {
+						return true;
+				}
+		}
+		return false;
+}
+
+bool Machine::tryClose() {
+		logC("Machine::tryClose()");
+		if (isExecuting()) {
+				return false;
+		} else {
+				close();
+				return true;
+		}
+}
+
+void Machine::close() {
+		logC("Machine::close()");
+		synchronized(state_mutex);
+		if (state.empty() || state.top() != State::Stopped) {
+				synchronized(machine_mutex);
+				while (!state.empty()) {
+						state.pop();
+				}
+				state.push(State::Stopped);
+				while (!signals.empty()) {
+						signals.pop();
+				}
+				_uptime = 0;
+				cpuTotal = 0;
+				cpuStart = 0;
+				remainIdle = 0;
+		}
+		exit(0);
 }
 
 size_t Machine::getTotalMemory() {

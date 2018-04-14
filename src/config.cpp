@@ -45,6 +45,9 @@ void AurumConfigFromYAML(std::string yaml, std::vector<Machine*>& machines, bool
 		} catch (...) {
 				logW("Failed getting machines and components; using default")
 		}
+		AurumConfig.threads = root["computer"]["threads"].as<int>(4);
+		AurumConfig.timeout = root["computer"]["timeout"].as<double>(5.0);
+		AurumConfig.startupDelay = root["computer"]["startupDelay"].as<double>(0.25);
 		AurumConfig.cpuComponentCount = root["computer"]["cpuComponentCount"].as<std::array<int, 4>>(std::array<int, 4>{8, 12, 16, 1024});
 		AurumConfig.callBudgets = root["computer"]["callBudgets"].as<std::array<double, 3>>(std::array<double, 3>{0.5, 1.0, 1.5});
 		AurumConfig.ramSizes = root["computer"]["ramSizes"].as<std::array<int, 6>>(std::array<int, 6>{192, 256, 384, 512, 768, 1024});
@@ -86,6 +89,9 @@ std::string AurumConfigToYAML(std::vector<Machine*>& machines) {
 				}
 				root["machines"].push_back(node);
 		}
+		root["computer"]["threads"] = AurumConfig.threads;
+		root["computer"]["timeout"] = AurumConfig.timeout;
+		root["computer"]["startupDelay"] = AurumConfig.startupDelay;
 		root["computer"]["cpuComponentCount"] = AurumConfig.cpuComponentCount;
 		root["computer"]["callBudgest"] = AurumConfig.callBudgets;
 		root["computer"]["ramSizes"] = AurumConfig.ramSizes;

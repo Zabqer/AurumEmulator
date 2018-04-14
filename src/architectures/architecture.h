@@ -3,6 +3,8 @@
 
 #include <map>
 
+#include "execution_result.h"
+
 class Architecture;
 class Machine;
 
@@ -23,6 +25,8 @@ class Architecture {
 		public:
 				static std::map<std::string, ArchitectureHolder*> byName;
 				virtual bool initialize(Machine*) = 0;
+				virtual ExecutionResult runThreaded(bool) = 0;
+				virtual void runSynchronized() = 0;
 };
 
 #endif
