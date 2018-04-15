@@ -6,7 +6,7 @@
 #include "config.h"
 #include "machine.h"
 
-#define VERSION "0.0.0.10"
+#define VERSION "0.0.1.0"
 
 #define AURUM_DEFAULT_PATH "~/AurumEmulator/"
 

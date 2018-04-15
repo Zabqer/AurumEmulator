@@ -24,6 +24,7 @@ class Component {
 				std::string address();
 				int tier();
 				Slot slot();
+				bool internal();
 };
 
 #endif

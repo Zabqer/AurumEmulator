@@ -17,3 +17,7 @@ int Component::tier() {
 Component::Slot Component::slot() {
 		return _slot;
 }
+
+bool Component::internal() {
+		return _internal;
+}

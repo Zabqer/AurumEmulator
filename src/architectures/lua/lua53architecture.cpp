@@ -1,8 +1,10 @@
 #include "lua53architecture.h"
-#include "lua_wrapper.h"
+#include "lua_lib.h"
 #include "allocator.h"
 #include "../../log.h"
 #include "../../resources/machine_lua.h"
+#include "computer_api.h"
+#include "component_api.h"
 
 Lua53Architecture::Lua53Architecture() {}
 
@@ -10,11 +12,12 @@ bool Lua53Architecture::initialize(Machine* machine_) {
 		logC("Lua53Architecture::initialize()");
 		machine = machine_;
 		//FIX FIX FIX: dlclose on non use!
-		lua = (new LuaWrapper("5.3"))->newState(allocator, machine);
+		lua = (new LuaLib("5.3"))->newState(allocator, machine);
 		lua.openLibs();
 		lua.loadBufferX(MACHINE_LUA, "=machine.lua", "t");
 		/* APIs */
-		
+		loadComputerAPI(lua);
+		loadComponentAPI(lua);
 		return true;
 }
 
