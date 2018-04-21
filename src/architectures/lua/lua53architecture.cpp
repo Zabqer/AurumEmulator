@@ -5,31 +5,39 @@
 #include "../../resources/machine_lua.h"
 #include "computer_api.h"
 #include "component_api.h"
+//#include "unicode_api.h"
+#include "system_api.h"
+#include "userdata_api.h"
 
 Lua53Architecture::Lua53Architecture() {}
 
 bool Lua53Architecture::initialize(Machine* machine_) {
 		logC("Lua53Architecture::initialize()");
 		machine = machine_;
-		//FIX FIX FIX: dlclose on non use!
-		lua = (new LuaLib("5.3"))->newState(allocator, machine);
+		lua = luaLibs["5.3"]->newState(allocator, machine);
 		lua.openLibs();
 		lua.loadBufferX(MACHINE_LUA, "=machine.lua", "t");
-		/* APIs */
 		loadComputerAPI(lua);
 		loadComponentAPI(lua);
+		//loadUnicodeAPI(lua);
+		loadSystemAPI(lua);
+		loadUserdataAPI(lua);
 		return true;
 }
 
 void Lua53Architecture::runSynchronized() {
 		logC("Lua53Architecture::runSynchronized()");
+		assert(lua.getTop() == 1);
+		assert(lua.isFunction(1));
+		lua.call(0, 1);
+		lua.checkType(1, Lua::TTable);
 }
 
 ExecutionResult Lua53Architecture::runThreaded(bool isSynchronizedReturn) {
 		logC("Lua53Architecture::runThreaded()");
 		int results;
 		if (isSynchronizedReturn) {
-				assert(lua.getTop() == 2);
+				assert(lua.getTop() == 1);
 				assert(lua.isTable(1));
 				results = lua.resume(1);
 		} else {

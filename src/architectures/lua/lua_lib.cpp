@@ -4,6 +4,8 @@
 
 #include "../../log.h"
 
+std::map<std::string, LuaLib*> luaLibs = {{"5.3", new LuaLib("5.3")}};
+
 #define wrap(name, ret, ...) ((ret (*)(...)) name)
 #define getL(name) lib = dlopen(name, RTLD_LAZY)
 #define getF(name) name = dlsym(lib, #name)
@@ -11,18 +13,28 @@
 LuaLib::LuaLib(const std::string version) {
 		logC("LuaLib::LuaLib()");
 		getL(("liblua" + version + ".so").c_str());
+		getF(lua_callk);
+		getF(luaL_checktype);
 		getF(lua_createtable);
 		getF(lua_gc);
 		getF(lua_getallocf);
 		getF(lua_gettop);
 		getF(lua_newstate);
+		getF(lua_newuserdata);
 		getF(luaL_openlibs);
 		getF(luaL_loadbufferx);
+		getF(lua_pushboolean);
 		getF(lua_pushcclosure);
 		getF(lua_pushinteger);
 		getF(lua_pushlightuserdata);
+		getF(lua_pushnil);
+		getF(lua_pushnumber);
 		getF(lua_pushstring);
+		getF(lua_rawset);
+		getF(lua_rawseti);
 		getF(lua_resume);
+		getF(lua_rotate);
+		getF(lua_setfield);
 		getF(lua_setglobal);
 		getF(lua_settable);
 		getF(lua_settop);
@@ -39,6 +51,16 @@ LuaLib::~LuaLib() {
 		if (lib) {
 				dlclose(lib);
 		}
+}
+
+void LuaLib::call(Lua::State state, int argc, int resc) {
+		logC("LuaLib::call()");
+		wrap(lua_callk, void, Lua::State, int, int, Lua::KContext, Lua::KFunction)(state, argc, resc, 0, NULL);
+}
+
+void LuaLib::checkType(Lua::State state, int index, int type) {
+		logC("LuaLib::checkType()");
+		wrap(luaL_checktype, void, Lua::State, int, int)(state, index, type);
 }
 
 void LuaLib::createTable(Lua::State state, int a, int b) {
@@ -96,6 +118,11 @@ Lua LuaLib::newState(Lua::Allocator allocator, void* ud) {
 		return Lua(this, wrap(lua_newstate, Lua::State, Lua::Allocator, void*)(allocator, ud));
 }
 
+void* LuaLib::newUserdata(Lua::State state, size_t size) {
+		logC("LuaLib::newUserdata()");
+		return wrap(lua_newuserdata, void*, Lua::State, size_t)(state, size);
+}
+
 void LuaLib::openLibs(Lua::State state) {
 		logC("LuaLib::openLibs()");
 		wrap(luaL_openlibs, void, Lua::State)(state);
@@ -109,6 +136,11 @@ int LuaLib::loadBufferX(Lua::State state, std::string data, const std::string na
 void LuaLib::pop(Lua::State state, int count) {
 		logC("LuaLib::pop()");
 		setTop(state, -(count) - 1);
+}
+
+void LuaLib::pushBoolean(Lua::State state, bool value) {
+		logC("LuaLib::pushBoolean()");
+		wrap(lua_pushboolean, void, Lua::State, bool)(state, value);
 }
 
 void LuaLib::pushCClosure(Lua::State state, Lua::Function func, int values) {
@@ -126,14 +158,50 @@ void LuaLib::pushLightUserdata(Lua::State state, void* ud) {
 		wrap(lua_pushlightuserdata, void, Lua::State, void*)(state, ud);
 }
 
+void LuaLib::pushNil(Lua::State state) {
+		logC("LuaLib::pushNil()");
+		wrap(lua_pushnil, void, Lua::State)(state);
+}
+
+void LuaLib::pushNumber(Lua::State state, Lua::Number value) {
+		logC("LuaLib::pushNumber()");
+		wrap(lua_pushnumber, void, Lua::State, Lua::Number)(state, value);
+}
+
 void LuaLib::pushString(Lua::State state, std::string value) {
 		logC("LuaLib::pushString()");
 		wrap(lua_pushstring, void, Lua::State, const char*)(state, value.c_str());
 }
 
+void LuaLib::rawSet(Lua::State state, int index) {
+		logC("LuaLib::rawSet()");
+		wrap(lua_rawset, void, Lua::State, int)(state, index);
+}
+
+void LuaLib::rawSetI(Lua::State state, int index, int i) {
+		logC("LuaLib::rawSetI()");
+		wrap(lua_rawseti, void, Lua::State, int, int)(state, index, i);
+}
+
+void LuaLib::remove(Lua::State state, int index) {
+		logC("LuaLib::remove()");
+		rotate(state, index, -1);
+		pop(state, 1);
+}
+
 int LuaLib::resume(Lua::State state, int argc) {
 		logC("LuaLib::resume()");
 		return wrap(lua_resume, int, Lua::State, Lua::State, int)(state, NULL, argc);
+}
+
+void LuaLib::rotate(Lua::State state, int index, int n) {
+		logC("LuaLib::rotate()");
+		wrap(lua_rotate, void, Lua::State, int, int)(state, index, n);
+}
+
+void LuaLib::setField(Lua::State state, int index, std::string name) {
+		logC("LuaLib::setField()");
+		wrap(lua_setfield, void, Lua::State, int, const char*)(state, index, name.c_str());
 }
 
 void LuaLib::setGlobal(Lua::State state, std::string name) {
@@ -185,6 +253,14 @@ Lua::Lua() {}
 
 Lua::Lua(LuaLib* luaWrapper_, State state_): state(state_), luaWrapper(luaWrapper_) {}
 
+void Lua::call(int argc, int resc) {
+		luaWrapper->call(state, argc, resc);
+}
+
+void Lua::checkType(int index, int type) {
+		luaWrapper->checkType(state, index, type);
+}
+
 void Lua::createTable(int a, int b) {
 		luaWrapper->createTable(state, a, b);
 }
@@ -225,6 +301,10 @@ bool Lua::isTable(int index) {
 		return luaWrapper->isTable(state, index);
 }
 
+void* Lua::newUserdata(size_t size) {
+		return luaWrapper->newUserdata(state, size);
+}
+
 void Lua::openLibs() {
 		luaWrapper->openLibs(state);
 }
@@ -235,6 +315,10 @@ int Lua::loadBufferX(const std::string data, const std::string name, const std::
 
 void Lua::pop(int count) {
 		luaWrapper->pop(state, count);
+}
+
+void Lua::pushBoolean(bool value) {
+		luaWrapper->pushBoolean(state, value);
 }
 
 void Lua::pushCClosure(Function func, int values) {
@@ -249,12 +333,40 @@ void Lua::pushLightUserdata(void* ud) {
 		luaWrapper->pushLightUserdata(state, ud);
 }
 
+void Lua::pushNil() {
+		luaWrapper->pushNil(state);
+}
+
+void Lua::pushNumber(Lua::Number value) {
+		luaWrapper->pushNumber(state, value);
+}
+
 void Lua::pushString(std::string value) {
 		luaWrapper->pushString(state, value);
 }
 
+void Lua::rawSet(int index) {
+		luaWrapper->rawSet(state, index);
+}
+
+void Lua::rawSetI(int index, int i) {
+		luaWrapper->rawSetI(state, index, i);
+}
+
+void Lua::remove(int index) {
+		luaWrapper->remove(state, index);
+}
+
 int Lua::resume(int argc) {
 		return luaWrapper->resume(state, argc);
+}
+
+void Lua::rotate(int index, int n) {;
+		luaWrapper->rotate(state, index, n);
+}
+
+void Lua::setField(int index, std::string name) {
+		luaWrapper->setField(state, index, name);
 }
 
 void Lua::setGlobal(std::string name) {

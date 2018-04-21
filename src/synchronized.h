@@ -3,6 +3,10 @@
 
 #include <mutex>
 
-#define synchronized(mutex) std::scoped_lock lock(mutex);
+#define CONCATT(a, b) a##b
+#define CONCAT(a, b) CONCATT(a, b)
+#define QUOTE(a) #a
+
+#define synchronized(mutex) std::scoped_lock CONCAT(lock_, mutex)(mutex)
 
 #endif

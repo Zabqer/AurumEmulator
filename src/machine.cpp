@@ -7,15 +7,12 @@
 #include <thread>
 #include <boost/asio/post.hpp>
 
-const std::string Machine::TYPE = "computer";
-
 //TODO: config `threads` value
-boost::asio::thread_pool Machine::threadPool(4);
+boost::asio::thread_pool Machine::threadPool(1);
 
-Machine::Machine(): Component(TYPE) {
+Machine::Machine() {
 		logC("Machine::Machine()");
 		state.push(State::Stopped);
-		_components.push_back(this);
 }
 
 void Machine::load(std::string address_) {
@@ -108,6 +105,35 @@ void Machine::onChanged() {
 				}
 				maxCallBudget = sum / callBudgets.size();
 		}
+}
+
+bool Machine::pause(double seconds) {
+		unsigned int ticksToPause = std::max(0, (int) seconds * 20);
+		bool shouldPause;
+		{
+				synchronized(state_mutex);
+				switch (state.top()) {
+						case State::Stopping:
+						case State::Stopped:
+								shouldPause = false;
+								break;
+						case State::Paused:
+								remainingPause = ticksToPause > remainingPause;
+								break;
+						default:
+								shouldPause = true;
+				}
+		}
+		if (shouldPause) {
+				synchronized(machine_mutex);
+				synchronized(state_mutex);
+				if (state.top() != State::Paused) {
+						state.push(State::Paused);
+				}
+				remainingPause = ticksToPause;
+				return true;
+		}
+		return false;
 }
 
 bool Machine::init() {
@@ -240,7 +266,8 @@ void Machine::crash(std::string message) {
 }
 
 void Machine::beep(std::string pattern) {
-		logC("Machine::beep()")};
+		logC("Machine::beep()");
+};
 
 void Machine::update() {
 		logC("Machine::update()");
@@ -412,4 +439,65 @@ size_t Machine::getUsedMemory() {
 
 void Machine::setUsedMemory(size_t memory) {
 		usedMemory = memory;
+}
+
+void Machine::consumeCallBudget(double cost) {
+		logC("Machine::consumeCallBudget()");
+		if (architecture != NULL && !inSynchronizedCall) {
+				double claimedCost = std::max(0.001, cost);
+				if (claimedCost > callBudget) {
+						throw limit_reached();
+				}
+				callBudget -= claimedCost;
+		}
+}
+
+Component* Machine::componentByAddress(std::string address) {
+		for (Component* component :_components) {
+				if (!component->internal() && component->address() == address) {
+						return component;
+				}
+		}
+		throw std::invalid_argument("no such component");
+}
+
+
+
+std::map<std::string, Method> Machine::methods(std::string address) {
+		logC("Machine::methods()");
+		return componentByAddress(address)->methods();
+}
+
+Arguments Machine::invoke(std::string address, std::string methodn, Arguments args) {
+		logC("Machine::invoke()");
+		Component* component = componentByAddress(address);
+		if (!component->methods().count(methodn)) {
+				throw std::invalid_argument("no such method");
+		}
+		Method method = component->methods()[methodn]; 
+		if (method.direct) {
+				consumeCallBudget(1 / method.limit);
+		}
+		logD("Invoking: `" << methodn << "`")
+		return method.callback(Context(this), args);
+}
+
+std::string Machine::documentation(std::string address, std::string method) {
+		Component* component = componentByAddress(address);
+		if (!component->methods().count(method)) {
+				throw std::invalid_argument("no such method");
+		}
+		return component->methods()[method].doc;
+}
+
+time_t Machine::uptime() {
+		return _uptime;
+}
+
+Component* Machine::tmpFS() {
+		return tmpfs;
+}
+
+std::string Machine::address() {
+		return _address;
 }

@@ -11,8 +11,9 @@
 #include "components/component.h"
 #include "architectures/architecture.h"
 
-class Machine: public Component {
+class Machine {
 		private:
+				std::string _address;
 				enum State {Stopped, Starting, Restarting, Stopping, Paused, SynchronizedCall, SynchronizedReturn, Yielded, Sleeping, Running};
 				std::stack<State> state;
 				static boost::asio::thread_pool threadPool;
@@ -22,15 +23,16 @@ class Machine: public Component {
 				std::recursive_mutex signals_mutex;
 				std::vector<Component*> _components;
 				size_t componentCount = 0;
+				Component* tmpfs;
 				Architecture* architecture;
 				bool inSynchronizedCall = false;
 				size_t maxComponents = 0;
 				size_t totalMemory = 0;
 				size_t usedMemory = 0;
 				double energyBuffer = 9999; //For testing
-				time_t _uptime;
-				time_t remainingPause = 0;
-				time_t remainIdle = 0;
+				unsigned int _uptime;
+				unsigned int remainingPause = 0;
+				unsigned int remainIdle = 0;
 				clock_t cpuStart = 0;
 				clock_t cpuTotal = 0;
 				double callBudget;
@@ -40,25 +42,33 @@ class Machine: public Component {
 				bool init();
 				void crash(std::string);
 				void beep(std::string);
-				bool tryChangeBuffer(double);
 				bool isExecuting();
 				void close();
 				bool tryClose();
 				void run();
+				Component* componentByAddress(std::string);
 		public:
-				static const std::string TYPE;
 				Machine();
 				void save(std::string&);
 				void load(std::string);
 				void update();
 				bool start();
 				bool stop();
+				bool pause(double);
+				bool tryChangeBuffer(double);
 				void addComponent(Component*);
 				std::vector<Component*>& components();
+				void consumeCallBudget(double);
 				size_t getTotalMemory();
 				void setTotalMemory(size_t);
 				size_t getUsedMemory();
 				void setUsedMemory(size_t);
+				std::map<std::string, Method> methods(std::string);
+				Arguments invoke(std::string, std::string, Arguments);
+				std::string documentation(std::string, std::string);
+				time_t uptime();
+				Component* tmpFS();
+				std::string address();
 };
 
 #endif

@@ -3,13 +3,51 @@
 
 #include <string>
 #include <vector>
+#include <map>
+#include <functional>
+#include <limits>
+
+#include "../arguments.h"
+
+class Machine;
+
+class limit_reached {};
 
 class CallBudget {
 		public:
 				virtual double callBudget() = 0;
 };
 
-class Component {
+struct Method {
+		typedef  std::function<Arguments(Context, Arguments)> Callback;
+		Callback callback;
+		std::string doc = "";
+		bool direct = false;
+		int limit = std::numeric_limits<int>::max();
+		bool getter = false;
+		bool setter = false;
+};
+
+class Callable {
+		private:
+				std::map<std::string, Method> _methods;
+		protected:
+				void setMethod(std::string, Method);
+		public:
+				std::map<std::string, Method> methods();
+};
+
+class Userdata: public Callable {
+
+};
+
+#define DMETHOD(name) Arguments name(Context, Arguments)
+
+#define METHOD(class, name) Arguments class::name(Context context, Arguments args)
+
+#define wrapMethod(name) [this](Context context, Arguments args) {return name(context, args);}
+
+class Component: public Callable {
 		public:
 				enum Slot {Unknown};
 		protected:

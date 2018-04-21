@@ -6,12 +6,12 @@
 #include "config.h"
 #include "machine.h"
 
-#define VERSION "0.0.1.0"
+#define VERSION "0.0.2.0"
 
-#define AURUM_DEFAULT_PATH "~/AurumEmulator/"
+#define AURUM_DEFAULT_PATH "/home/Git/AurumEmulator/Env/"//"~/AurumEmulator/"
 
 void help() {
-		_log("AurumEmulator help: ");
+		_log("Help: ");
 		_log(" Options: ");
 		_log("  -h -- display this help")
 		_log("  --force-call=true|false -- ignore config call log option");
@@ -20,10 +20,10 @@ void help() {
 }
 
 int main(int argc, char** argv) {
-		
+
 		_log("Aurum Emulator / Zabqer / " VERSION);
 		
-		std::string configPath = AURUM_DEFAULT_PATH;
+		AurumConfig.envPath = AURUM_DEFAULT_PATH;
 
 		bool* forcecall = NULL;
 		bool* forcedebug = NULL;
@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
 								}
 						} else if (option == "path") {
 								if (value.length() > 0) {
-										configPath = value;
+										AurumConfig.envPath = value;
 								}
 						} else {
 								logE("Wrong option: " << option);
@@ -80,7 +80,7 @@ int main(int argc, char** argv) {
 				}
 		}
 
-		configPath += "/Config.yaml";
+		std::string configPath = AurumConfig.envPath + "/Config.yaml";
 
 		std::vector<Machine*> machines;
 
@@ -96,23 +96,31 @@ int main(int argc, char** argv) {
 
 		delete forcecall;
 		delete forcedebug;
-
-		std::ofstream oc(configPath);
-		if (oc.is_open()) {
-				std::stringstream oss;
-				oss << AurumConfigToYAML(machines);
-				oc << oss.rdbuf();
-				oc.close();
-		} else {
-				logW("Can't open config file for write: " << configPath);
-		}
 				
 		for (Machine* machine :machines) {
 				machine->start();
 		}
 
 		clock_t deadline = 0;
+		clock_t nextsave = 0;
+		AurumConfig.changed = true;
 		while (machines.size() > 0) {
+				if (nextsave <= clock() || machines.size() == 0) {
+						nextsave = clock() + 1000000;
+						if (AurumConfig.changed) {
+								logD("Saving config...")
+								std::ofstream oc(configPath);
+								if (oc.is_open()) {
+										std::stringstream oss;
+										oss << AurumConfigToYAML(machines);
+										oc << oss.rdbuf();
+										oc.close();
+								} else {
+										logW("Can't open config file for write: " << configPath);
+								}
+								AurumConfig.changed = false;
+						}
+				}
 				if (deadline <= clock()) {
 						deadline = clock() + 1000000 / 20;
 						for (Machine* machine :machines) {
