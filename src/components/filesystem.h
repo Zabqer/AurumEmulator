@@ -13,7 +13,7 @@ class FileSystem: public Component {
 		public:
 				class FileHandle: public Userdata {
 						public:
-								const std::fstream stream;
+								std::fstream stream;
 								FileHandle(std::string path, std::ios::openmode);
 				};
 		private:

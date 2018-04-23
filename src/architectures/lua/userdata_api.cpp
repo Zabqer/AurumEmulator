@@ -2,10 +2,10 @@
 #include "api.h"
 #include "../../log.h"
 
-API(userdata_) {
-		logC("UserdataAPI::()");
-		
-		return 0;
+API(userdata_methods) {
+		logC("UserdataAPI::methods()");
+		lua.createTable(0, 0);
+		return 1;
 }
 
 /*API(userdata_) {
@@ -16,6 +16,6 @@ API(userdata_) {
 
 void loadUserdataAPI(Lua lua) {
 		lua.createTable(0, 0);
-		loadAPIFunction(lua, "a", userdata_);
+		loadAPIFunction(lua, "methods", userdata_methods);
 		lua.setGlobal("userdata");
 };

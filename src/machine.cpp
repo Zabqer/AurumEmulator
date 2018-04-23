@@ -1,6 +1,7 @@
 #include "machine.h"
 #include "log.h"
 #include "synchronized.h"
+#include "components/computer.h"
 #include "components/CPU.h"
 #include "components/RAM.h"
 
@@ -10,6 +11,8 @@
 //TODO: config `threads` value
 boost::asio::thread_pool Machine::threadPool(1);
 
+Machine::Signal::Signal(std::string name_, std::vector<std::any> args_): name(name_), std::vector<std::any>(args_) {}
+
 Machine::Machine() {
 		logC("Machine::Machine()");
 		state.push(State::Stopped);
@@ -18,6 +21,9 @@ Machine::Machine() {
 void Machine::load(std::string address_) {
 		logC("Machine::load()");
 		_address = address_;
+		Computer* computer = new Computer;
+		computer->load(_address, this);
+		_components.push_back(computer);
 }
 
 void Machine::save(std::string& address_) {
@@ -79,6 +85,19 @@ bool Machine::start() {
 		}
 }
 
+bool Machine::stop() {
+		logC("Machine::stop()");
+		synchronized(state_mutex);
+		switch (state.top()) {
+				case State::Stopped:
+				case State::Stopping:
+						return false;
+				default:
+						state.push(State::Stopping);
+						return true;
+		}
+}
+
 void Machine::onChanged() {
 		logC("Machine::onChanged()");
 		maxComponents = 0;
@@ -134,6 +153,12 @@ bool Machine::pause(double seconds) {
 				return true;
 		}
 		return false;
+}
+
+bool Machine::isRunning() {
+		logC("Machine::isRunning()");		
+		synchronized(state_mutex);
+		return state.top() != State::Stopped && state.top() != State::Stopping;
 }
 
 bool Machine::init() {
@@ -439,6 +464,29 @@ size_t Machine::getUsedMemory() {
 
 void Machine::setUsedMemory(size_t memory) {
 		usedMemory = memory;
+}
+
+std::optional<Machine::Signal> Machine::popSignal() {
+
+}
+
+bool Machine::signal(Signal signal) {
+		logC("Machine::signal()");
+		synchronized(state_mutex);
+		switch (state.top()) {
+				case State::Stopped:
+				case State::Stopping:
+						return false;
+				default: {
+						synchronized(signals_mutex);
+						if (signals.size() >= 256) {
+								return false;
+						} else {
+								signals.push(signal);
+								return true;
+						}
+				}
+		}
 }
 
 void Machine::consumeCallBudget(double cost) {

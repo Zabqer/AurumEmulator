@@ -2,8 +2,9 @@
 #define __LUA2C_H__
 
 #include "lua_lib.h"
-#include "../../arguments.h"
+#include <vector>
+#include <any>
 
-Arguments lua2c(Lua);
+std::vector<std::any> lua2c(Lua);
 
 #endif

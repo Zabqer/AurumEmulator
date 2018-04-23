@@ -26,9 +26,11 @@ class Arguments: public std::vector<std::any>  {
 				void checkIndex(unsigned int, std::string);
 				bool isDefined(unsigned int);
 		public:
+				Arguments(std::vector<std::any>);
 				Arguments(std::initializer_list<std::any> args_);
 		Arguments();
 		std::any checkAny(unsigned int);
+		int checkInteger(unsigned int);
 		bool isString(unsigned int);
 		std::string checkString(unsigned int);
 		std::string optString(unsigned int, std::string);

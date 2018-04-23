@@ -2,8 +2,9 @@
 #define __C2LUA_H__
 
 #include "lua_lib.h"
-#include "../../arguments.h"
+#include <vector>
+#include <any>
 
-void c2lua(Lua, Arguments);
+void c2lua(Lua, std::vector<std::any>);
 
 #endif

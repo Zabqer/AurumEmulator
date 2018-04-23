@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <boost/filesystem.hpp>
 
 #include "../resources/bios_lua.h"
 #include "../log.h"
@@ -29,6 +30,19 @@ void EEPROM::save(std::string& address_, std::string& label_, bool& ro_) {
 		address_ = _address;
 		label_ = label;
 		ro_ = ro;
+		if (!boost::filesystem::exists(basePath)) {
+				boost::filesystem::create_directory(basePath);
+		}
+		std::ofstream oc(basePath + "code");
+		if (oc.is_open()) {
+				oc << code;
+				oc.close();
+		}
+		std::ofstream od(basePath + "data");
+		if (od.is_open()) {
+				od << data;
+				od.close();
+		}
 }
 
 void EEPROM::load(std::string address_, std::string label_, bool ro_) {

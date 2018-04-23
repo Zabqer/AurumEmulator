@@ -1,6 +1,7 @@
 #include "computer_api.h"
 #include "api.h"
 #include "../../log.h"
+#include "lua2c.h"
 
 #include <chrono>
 
@@ -36,9 +37,10 @@ API(computer_totalMemory) {
 
 API(computer_pushSignal) {
 		logC("ComputerAPI::pushSignal()");
-		logE("PushSignal is temporary unsupported!");
-		exit(100);
-		return 0;
+		std::string name = lua.checkString(1);
+		lua.remove(1);
+		lua.pushBoolean(machine->signal({name, lua2c(lua)}));
+		return 1;
 }
 
 API(computer_tmpAddress) {
@@ -56,7 +58,8 @@ API(computer_tmpAddress) {
 API(computer_users) {
 		logC("ComputerAPI::users()");
 		lua.createTable(0, 0);
-		//lua.pushString("AurumEmulator");
+		lua.pushString("AurumEmulator");
+		lua.rawSetI(-2, 1);
 		return 1;
 }
 

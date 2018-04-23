@@ -27,12 +27,12 @@ FileSystem::FileSystem(): Component(TYPE) {
 		setMethod("list", {callback: wrapMethod(list), doc: "function(path:string):table -- Returns a list of names of objects in the directory at the specified absolute path in the file system."});
 		setMethod("makeDirectory", {callback: wrapMethod(makeDirectory), doc: "function(path:string):boolean -- Creates a directory at the specified absolute path in the file system. Creates parent directories, if necessary."});
 		setMethod("remove", {callback: wrapMethod(remove), doc: "function(path:string):boolean -- Removes the object at the specified absolute path in the file system."});
-		//setMethod("rename", {callback: wrapMethod(rename), doc: "function(from:string, to:string):boolean -- Renames/moves an object from the first specified absolute path in the file system to the second."});
-		//setMethod("close", {callback: wrapMethod(close), doc: "function(handle:userdata) -- Closes an open file descriptor with the specified handle.", direct: true});
+		setMethod("rename", {callback: wrapMethod(rename), doc: "function(from:string, to:string):boolean -- Renames/moves an object from the first specified absolute path in the file system to the second."});
+		setMethod("close", {callback: wrapMethod(close), doc: "function(handle:userdata) -- Closes an open file descriptor with the specified handle.", direct: true});
 		setMethod("open", {callback: wrapMethod(open), doc: "function(path:string[, mode:string='r']):userdata -- Opens a new file descriptor and returns its handle.", direct: true, limit: 4});
 		setMethod("read", {callback: wrapMethod(read), doc: "function(handle:userdata, count:number):string or nil -- Reads up to the specified amount of data from an open file descriptor with the specified handle. Returns nil when EOF is reached.", direct: true, limit: 15});
-		//setMethod("seek", {callback: wrapMethod(seek), doc: "function(handle:userdata, whence:string, offset:number):number -- Seeks in an open file descriptor with the specified handle. Returns the new pointer position.", direct: true});
-		//setMethod("write", {callback: wrapMethod(write), doc: "function(handle:userdata, value:string):boolean -- Writes the specified data to an open file descriptor with the specified handle.", direct: true});
+		setMethod("seek", {callback: wrapMethod(seek), doc: "function(handle:userdata, whence:string, offset:number):number -- Seeks in an open file descriptor with the specified handle. Returns the new pointer position.", direct: true});
+		setMethod("write", {callback: wrapMethod(write), doc: "function(handle:userdata, value:string):boolean -- Writes the specified data to an open file descriptor with the specified handle.", direct: true});
 }
 
 FileSystem::FileHandle::FileHandle(std::string path, std::ios::openmode mode): stream(path, mode) {}
@@ -220,23 +220,44 @@ METHOD(FileSystem, makeDirectory) {
 METHOD(FileSystem, remove) {
 		logC("FileSystem::remove()");
 		synchronized(filesystem_mutex);
-		return {boost::filesystem::remove(cleanPath(root, args.checkString(0)))};
+		boost::system::error_code ec;
+		boost::filesystem::remove_all(cleanPath(root, args.checkString(0)), ec);
+		return {!ec};
 }
 
 METHOD(FileSystem, rename) {
 		logC("FileSystem::rename()");
 		synchronized(filesystem_mutex);
-		//return {boost::filesystem::rename(cleanPath(root, args.checkString(0)), cleanPath(basePath, args.checkString(1)))};
+		boost::system::error_code ec;
+		boost::filesystem::rename(cleanPath(root, args.checkString(0)), cleanPath(root, args.checkString(1)), ec);
+		return {!ec};
 }
 
-
+METHOD(FileSystem, close) {
+		logC("FileSystem::close()");
+		synchronized(filesystem_mutex);
+		FileHandle* handle = checkHandle(args, 0);
+		if (!handles.count(handle)) {
+				throw std::runtime_error("bad file descriptor");
+		}
+		handle->stream.close();
+		return {true};
+}
 METHOD(FileSystem, open) {
 		logC("FileSystem::open()");
 		synchronized(filesystem_mutex);
 		if (handles.size() >= AurumConfig.maxOpenHandles) {
 				throw std::runtime_error("too many open handles");
 		}
-		FileHandle* handle = new FileHandle(cleanPath(root, args.checkString(0)), parseMode(args.optString(1, "r")));
+		std::string path = cleanPath(root, args.checkString(0));
+		std::ios::openmode mode = parseMode(args.optString(1, "r"));
+		if (ro && (mode == std::ios::out ||mode == std::ios::app)) {
+				throw std::runtime_error("read-only filesystem");
+		}
+		if (mode == std::ios::in && (!boost::filesystem::exists(path) || boost::filesystem::is_directory(path))) {
+				throw std::runtime_error("file not found");
+		}
+		FileHandle* handle = new FileHandle(path, mode);
 		if (handle->stream.is_open()) {
 				handles.insert(handle);
 		}
@@ -248,5 +269,66 @@ METHOD(FileSystem, read) {
 		synchronized(filesystem_mutex);
 		context.consumeCallBudget(readCosts[speed]);
 		FileHandle* handle = checkHandle(args, 0);
-		exit(22);
+		if (!handles.count(handle)) {
+				throw std::runtime_error("bad file descriptor");
+		}
+		size_t cur = handle->stream.tellg();
+		handle->stream.seekg(0, std::ios::end);
+		size_t remain = handle->stream.tellg() - cur;
+		handle->stream.seekg(cur, std::ios::beg);
+		size_t n = std::min<size_t>({remain, AurumConfig.maxReadBuffer, std::max<size_t>(0, args.checkInteger(1))});
+		if (remain == 0 || handle->stream.eof()) {
+				return {Null()};
+		}
+		if (!context.tryChangeBuffer(-AurumConfig.hddReadCost * n)) {
+				throw new std::runtime_error("not enough energy");
+		}
+		char* buffer = new char[n];
+		handle->stream.read(buffer, n);
+		buffer[n] = '\0';
+		std::string result(buffer);
+		delete[] buffer;
+		return {result};
+}
+
+METHOD(FileSystem, seek) {
+		logC("FileSystem::seek()");
+		synchronized(filesystem_mutex);
+		context.consumeCallBudget(seekCosts[speed]);
+		FileHandle* handle = checkHandle(args, 0);
+		if (!handles.count(handle)) {
+				throw std::runtime_error("bad file descriptor");
+		}
+		std::string whence = args.checkString(1);
+		int offset = args.checkInteger(2);
+		long long int cur = handle->stream.tellg();
+		handle->stream.seekg(0, std::ios::end);
+		size_t size = handle->stream.tellg();
+		handle->stream.seekg(cur, std::ios::beg);
+		if (whence == "cur") {
+				handle->stream.seekg(std::max<long long int>(std::min<long long int>(offset + cur, size), 0), std::ios::beg);
+		} else if (whence == "set") {
+				handle->stream.seekg(std::max<long long int>(std::min<long long int>(offset, size), 0), std::ios::beg);
+		} else if (whence == "end") {
+				handle->stream.seekg(std::min<long long int>(std::min<long long int>(size + offset, size), 0), std::ios::beg);
+		} else {
+				throw std::invalid_argument("invalid mode");
+		}
+		return {(size_t) handle->stream.tellg()};
+}
+
+METHOD(FileSystem, write) {
+		logC("FileSystem::write()");
+		synchronized(filesystem_mutex);
+		context.consumeCallBudget(writeCosts[speed]);
+		FileHandle* handle = checkHandle(args, 0);
+		if (!handles.count(handle)) {
+				throw std::runtime_error("bad file descriptor");
+		}
+		std::string data = args.checkString(1);
+		if (!context.tryChangeBuffer(-AurumConfig.hddWriteCost * data.length())) {
+				throw new std::runtime_error("not enough energy");
+		}
+		handle->stream.write(data.c_str(), data.length());
+		return {true};
 }

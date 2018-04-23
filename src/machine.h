@@ -12,6 +12,13 @@
 #include "architectures/architecture.h"
 
 class Machine {
+		public: 
+				class Signal: public std::vector<std::any> {
+					public:
+							std::string name;
+							Signal(std::string, std::vector<std::any>);
+							Signal(std::string, std::initializer_list<std::any>);
+				};
 		private:
 				std::string _address;
 				enum State {Stopped, Starting, Restarting, Stopping, Paused, SynchronizedCall, SynchronizedReturn, Yielded, Sleeping, Running};
@@ -19,7 +26,7 @@ class Machine {
 				static boost::asio::thread_pool threadPool;
 				std::recursive_mutex state_mutex;
 				std::recursive_mutex machine_mutex;
-				std::queue<void*> signals; //TODO: make Signal class
+				std::queue<Signal> signals;
 				std::recursive_mutex signals_mutex;
 				std::vector<Component*> _components;
 				size_t componentCount = 0;
@@ -46,7 +53,6 @@ class Machine {
 				void close();
 				bool tryClose();
 				void run();
-				Component* componentByAddress(std::string);
 		public:
 				Machine();
 				void save(std::string&);
@@ -55,9 +61,13 @@ class Machine {
 				bool start();
 				bool stop();
 				bool pause(double);
+				bool isRunning();
 				bool tryChangeBuffer(double);
 				void addComponent(Component*);
 				std::vector<Component*>& components();
+				Component* componentByAddress(std::string);
+				std::optional<Signal> popSignal();
+				bool signal(Signal);
 				void consumeCallBudget(double);
 				size_t getTotalMemory();
 				void setTotalMemory(size_t);

@@ -37,9 +37,12 @@ void AurumConfigFromYAML(std::string yaml, std::vector<Machine*>& machines, bool
 		AurumConfig.tickFrequency = root["power"]["tickFrequency"].as<int>(10);
 		AurumConfig.computerCost = root["power"]["cost"]["computer"].as<double>(0.5);
 		AurumConfig.sleepCostFactor = root["power"]["cost"]["sleepFactor"].as<double>(0.1);
+		AurumConfig.hddReadCost = root["power"]["cost"]["hddRead"].as<double>(0.1);
+		AurumConfig.hddWriteCost = root["power"]["cost"]["hddWrite"].as<double>(0.25);
 		AurumConfig.eepromWriteCost = root["computer"]["cost"]["eepromWrite"].as<double>(50);
 		AurumConfig.hddSizes = root["filesystem"]["hddSizes"].as<std::array<int, 3>>(std::array<int, 3>{1024, 2048, 4096});
 		AurumConfig.maxOpenHandles = root["filesystem"]["openHandles"].as<int>(16);
+		AurumConfig.maxReadBuffer = root["filesystem"]["maxReadBuffer"].as<int>(2048);
 		try {
 				if (root["machines"].IsSequence()) {
 						for (YAML::Node node :root["machines"]) {
@@ -178,9 +181,12 @@ std::string AurumConfigToYAML(std::vector<Machine*>& machines) {
 		root["power"]["tickFrequency"] = AurumConfig.tickFrequency;
 		root["power"]["cost"]["computer"] = AurumConfig.computerCost;
 		root["power"]["cost"]["sleepFactor"] = AurumConfig.sleepCostFactor;
+		root["power"]["cost"]["hddRead"] = AurumConfig.hddReadCost;
+		root["power"]["cost"]["hddWrite"] = AurumConfig.hddWriteCost;
 		root["power"]["cost"]["eepromWrite"] = AurumConfig.eepromWriteCost;
 		root["filesystem"]["hddSizes"] = AurumConfig.hddSizes;
 		root["filesystem"]["openHandles"] = AurumConfig.maxOpenHandles;
+		root["filesystem"]["maxReadBuffer"] = AurumConfig.maxReadBuffer;
 		YAML::Emitter emitter;
 		emitter << root;
 		return emitter.c_str();

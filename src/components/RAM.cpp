@@ -20,7 +20,7 @@ void RAM::load(int tier) {
 }
 
 size_t RAM::amount() {
-		return AurumConfig.ramSizes[_tier];
+		return AurumConfig.ramSizes[_tier - 1];
 }
 
 double RAM::callBudget() {

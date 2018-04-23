@@ -25,10 +25,13 @@ struct AurumConfig_t {
 		bool ignorePower;
 		int tickFrequency;
 		double computerCost;
+		double hddReadCost;
+		double hddWriteCost;
 		double sleepCostFactor;
 		double eepromWriteCost;
 		std::array<int, 3> hddSizes;
 		int maxOpenHandles;
+		int maxReadBuffer;
 };
 
 extern AurumConfig_t AurumConfig;

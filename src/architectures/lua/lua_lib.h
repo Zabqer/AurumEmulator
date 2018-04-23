@@ -27,16 +27,19 @@ class Lua {
 				static const inline int GCCollect = 2;
 				static const inline int TNil = 0;
 				static const inline int TBoolean = 1;
+				static const inline int TLightUserdata = 2;
 				static const inline int TNumber = 3;
 				static const inline int TString = 4;
 				static const inline int TTable = 5;
 				static const inline int TFunction = 6;
+				static const inline int TUserdata = 7;
 				static const inline int MaxStack = 1000000;
 				static const inline int RegistryIndex = -MaxStack - 1000;
 				Lua();
 				Lua(LuaLib*, State);
 				void call(int, int);
 				void checkType(int, int);
+				std::string checkString(int);
 				void createTable(int, int);
 				int gc(int, int);
 				Lua::Allocator getAllocF(void** ud);
@@ -80,6 +83,7 @@ class LuaLib {
 				void* lib;
 				void* lua_callk;
 				void* luaL_checktype;
+				void* luaL_checklstring;
 				void* lua_createtable;
 				void* lua_gc;
 				void* lua_getallocf;
@@ -115,6 +119,7 @@ class LuaLib {
 				~LuaLib();
 				void call(Lua::State, int, int);
 				void checkType(Lua::State, int, int);
+				std::string checkString(Lua::State, int);
 				void createTable(Lua::State, int, int);
 				int gc(Lua::State, int, int);
 				Lua::Allocator getAllocF(Lua::State, void** ud);

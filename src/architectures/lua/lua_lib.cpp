@@ -15,6 +15,7 @@ LuaLib::LuaLib(const std::string version) {
 		getL(("liblua" + version + ".so").c_str());
 		getF(lua_callk);
 		getF(luaL_checktype);
+		getF(luaL_checklstring);
 		getF(lua_createtable);
 		getF(lua_gc);
 		getF(lua_getallocf);
@@ -61,6 +62,11 @@ void LuaLib::call(Lua::State state, int argc, int resc) {
 void LuaLib::checkType(Lua::State state, int index, int type) {
 		logC("LuaLib::checkType()");
 		wrap(luaL_checktype, void, Lua::State, int, int)(state, index, type);
+}
+
+std::string LuaLib::checkString(Lua::State state, int index) {
+		logC("LuaLib::checkString()");
+		return wrap(luaL_checklstring, const char*, Lua::State, int)(state, index);
 }
 
 void LuaLib::createTable(Lua::State state, int a, int b) {
@@ -259,6 +265,10 @@ void Lua::call(int argc, int resc) {
 
 void Lua::checkType(int index, int type) {
 		luaWrapper->checkType(state, index, type);
+}
+
+std::string Lua::checkString(int index) {
+		return luaWrapper->checkString(state, index);
 }
 
 void Lua::createTable(int a, int b) {

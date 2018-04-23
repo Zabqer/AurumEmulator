@@ -15,6 +15,8 @@ void Context::consumeCallBudget(double cost) {
 		machine->consumeCallBudget(cost);
 }
 
+Arguments::Arguments(std::vector<std::any> args_): std::vector<std::any>(args_) {}
+
 Arguments::Arguments(std::initializer_list<std::any> args_): std::vector<std::any>(args_) {}
 
 Arguments::Arguments() {}
@@ -22,6 +24,8 @@ Arguments::Arguments() {}
 std::string Arguments::typeName(std::any& value) {
 		if (value.type() == typeid(Null)) {
 				return "nil";
+		} else if (value.type() == typeid(double)) {
+				return "number";
 		}
 		return value.type().name();
 }
@@ -36,13 +40,21 @@ void Arguments::checkIndex(unsigned int index, std::string name) {
 		}
 }
 
+bool Arguments::isDefined(unsigned int index) {
+		return index < size() && at(index).type() != typeid(Null);
+}
+
 std::any Arguments::checkAny(unsigned int index) {
 		checkIndex(index, "value");
 		return at(index);
 }
 
-bool Arguments::isDefined(unsigned int index) {
-		return index < size() && at(index).type() != typeid(Null);
+int Arguments::checkInteger(unsigned int index) {
+		checkIndex(index, "number");
+		if (at(index).type() != typeid(double)) {
+				typeError(index, at(index), "number");
+		}
+		return (int) std::any_cast<double>(at(index));
 }
 
 std::string Arguments::checkString(unsigned int index) {
