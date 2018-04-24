@@ -35,7 +35,14 @@ FileSystem::FileSystem(): Component(TYPE) {
 		setMethod("write", {callback: wrapMethod(write), doc: "function(handle:userdata, value:string):boolean -- Writes the specified data to an open file descriptor with the specified handle.", direct: true});
 }
 
-FileSystem::FileHandle::FileHandle(std::string path, std::ios::openmode mode): stream(path, mode) {}
+FileSystem::FileHandle::FileHandle(FileSystem* fs_, std::string path, std::ios::openmode mode): fs(fs_), stream(path, mode) {
+		logC("FileHandle::FileHandle()");
+}
+
+FileSystem::FileHandle::~FileHandle() {
+		logC("FileHandle::~FileHandle()");
+		fs->close(this);
+}
 
 std::string simplifyPath(std::string path) {
 		std::vector<std::string> entries;
@@ -130,6 +137,11 @@ void FileSystem::load(std::string address_, int tier_, std::optional<std::string
 		_spaceTotal = AurumConfig.hddSizes[_tier - 1] * 1024;
 		label = label_;
 		ro = ro_;
+}
+
+void FileSystem::close(FileHandle* handle) {
+		handles.erase(handles.find(handle));
+		handle->stream.close();
 }
 
 METHOD(FileSystem, getLabel) {
@@ -240,7 +252,7 @@ METHOD(FileSystem, close) {
 		if (!handles.count(handle)) {
 				throw std::runtime_error("bad file descriptor");
 		}
-		handle->stream.close();
+		close(handle);
 		return {true};
 }
 METHOD(FileSystem, open) {
@@ -257,7 +269,7 @@ METHOD(FileSystem, open) {
 		if (mode == std::ios::in && (!boost::filesystem::exists(path) || boost::filesystem::is_directory(path))) {
 				throw std::runtime_error("file not found");
 		}
-		FileHandle* handle = new FileHandle(path, mode);
+		FileHandle* handle = new FileHandle(this, path, mode);
 		if (handle->stream.is_open()) {
 				handles.insert(handle);
 		}
@@ -285,8 +297,7 @@ METHOD(FileSystem, read) {
 		}
 		char* buffer = new char[n];
 		handle->stream.read(buffer, n);
-		buffer[n] = '\0';
-		std::string result(buffer);
+		std::string result(buffer, n);
 		delete[] buffer;
 		return {result};
 }

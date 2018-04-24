@@ -12,9 +12,12 @@
 class FileSystem: public Component {
 		public:
 				class FileHandle: public Userdata {
+						private:
+								FileSystem* fs;
 						public:
 								std::fstream stream;
-								FileHandle(std::string path, std::ios::openmode);
+								FileHandle(FileSystem*, std::string path, std::ios::openmode);
+								~FileHandle();
 				};
 		private:
 				std::string root;
@@ -33,6 +36,7 @@ class FileSystem: public Component {
 				FileSystem();
 				void save(std::string&, int&,  std::optional<std::string>&, bool&);
 				void load(std::string, int, std::optional<std::string>, bool);
+				void close(FileHandle*);
 				DMETHOD(getLabel);
 				DMETHOD(setLabel);
 				DMETHOD(isReadOnly);

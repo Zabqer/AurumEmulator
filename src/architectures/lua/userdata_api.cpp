@@ -8,14 +8,15 @@ API(userdata_methods) {
 		return 1;
 }
 
-/*API(userdata_) {
-		logC("UserdataAPI::()");
+API(userdata_dispose) {
+		logC("UserdataAPI::dispose()");
 		
 		return 0;
-}*/
+}
 
 void loadUserdataAPI(Lua lua) {
 		lua.createTable(0, 0);
 		loadAPIFunction(lua, "methods", userdata_methods);
+		loadAPIFunction(lua, "dispose", userdata_dispose);
 		lua.setGlobal("userdata");
 };

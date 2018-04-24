@@ -20,7 +20,7 @@ class Lua {
 				typedef int (* Function) (State);
 				typedef intptr_t KContext;
 				typedef int (* KFunction) (State, int, KContext);
-				typedef long int Integer;
+				typedef long long Integer;
 				typedef long double Number;
 				typedef unsigned int Unsigned;
 				static const inline int Yield = 1;
@@ -39,6 +39,7 @@ class Lua {
 				Lua(LuaLib*, State);
 				void call(int, int);
 				void checkType(int, int);
+				Lua::Integer checkInteger(int);
 				std::string checkString(int);
 				void createTable(int, int);
 				int gc(int, int);
@@ -62,7 +63,7 @@ class Lua {
 				void pushNumber(Lua::Number);
 				void pushString(std::string);
 				void rawSet(int);
-				void rawSetI(int, int);
+				void rawSetI(int, Lua::Integer);
 				void remove(int);
 				int resume(int);
 				void rotate(int, int);
@@ -83,6 +84,7 @@ class LuaLib {
 				void* lib;
 				void* lua_callk;
 				void* luaL_checktype;
+				void* luaL_checkinteger;
 				void* luaL_checklstring;
 				void* lua_createtable;
 				void* lua_gc;
@@ -119,6 +121,7 @@ class LuaLib {
 				~LuaLib();
 				void call(Lua::State, int, int);
 				void checkType(Lua::State, int, int);
+				Lua::Integer checkInteger(Lua::State, int);
 				std::string checkString(Lua::State, int);
 				void createTable(Lua::State, int, int);
 				int gc(Lua::State, int, int);
@@ -143,7 +146,7 @@ class LuaLib {
 				void pushNumber(Lua::State, Lua::Number);
 				void pushString(Lua::State, std::string);
 				void rawSet(Lua::State, int);
-				void rawSetI(Lua::State, int, int);
+				void rawSetI(Lua::State, int, Lua::Integer);
 				void remove(Lua::State, int);
 				int resume(Lua::State, int);
 				void rotate(Lua::State, int, int);

@@ -57,7 +57,7 @@ API(computer_tmpAddress) {
 
 API(computer_users) {
 		logC("ComputerAPI::users()");
-		lua.createTable(0, 0);
+		lua.createTable(1, 0);
 		lua.pushString("AurumEmulator");
 		lua.rawSetI(-2, 1);
 		return 1;

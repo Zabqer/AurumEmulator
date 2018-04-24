@@ -34,11 +34,6 @@ void c2lua_value(Lua lua, std::any& value) {
 						c2lua_value(lua, v);
 						lua.rawSetI(-2, i++);
 				}
-		} else if (value.type() == typeid(std::map<std::any, std::any>)) {
-				for (auto [k, v] :std::any_cast<std::map<std::any, std::any>>(value)) {
-						logE("implement!!!")
-exit(10);
-				}
 		} else {
 				logD("c2lua: std::any -> userdata");
 				void* ud = lua.newUserdata(sizeof(std::any));

@@ -30,7 +30,7 @@ class Machine {
 				std::recursive_mutex signals_mutex;
 				std::vector<Component*> _components;
 				size_t componentCount = 0;
-				Component* tmpfs;
+				Component* tmpfs = NULL;
 				Architecture* architecture;
 				bool inSynchronizedCall = false;
 				size_t maxComponents = 0;

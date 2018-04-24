@@ -5,9 +5,10 @@
 #include "../../resources/machine_lua.h"
 #include "computer_api.h"
 #include "component_api.h"
-//#include "unicode_api.h"
+#include "unicode_api.h"
 #include "system_api.h"
 #include "userdata_api.h"
+#include "c2lua.h"
 
 Lua53Architecture::Lua53Architecture() {}
 
@@ -19,7 +20,7 @@ bool Lua53Architecture::initialize(Machine* machine_) {
 		lua.loadBufferX(MACHINE_LUA, "=machine.lua", "t");
 		loadComputerAPI(lua);
 		loadComponentAPI(lua);
-		//loadUnicodeAPI(lua);
+		loadUnicodeAPI(lua);
 		loadSystemAPI(lua);
 		loadUserdataAPI(lua);
 		return true;
@@ -48,15 +49,16 @@ ExecutionResult Lua53Architecture::runThreaded(bool isSynchronizedReturn) {
 						} else {
 								lua.gc(Lua::GCCollect, 0);
 								kernelMemory = machine->getUsedMemory();
+								machine->setTotalMemory(machine->getTotalMemory() + kernelMemory);
 								lua.pushInteger(0);
 								results = 1;
 						}
 				} else {
-						void/*Signal*/* signal = 0;//machine->popSignal();
-						if (signal != NULL) {
-								//lua.pushString(signal.name());
-								//convert
-								//results = lua.resume(1 + signal.size())
+						std::optional<Machine::Signal> signal = machine->popSignal();
+						if (signal) {
+								lua.pushString((*signal).name);
+								c2lua(lua, *signal);
+								results = lua.resume(1 + (*signal).size());
 						} else {
 								results = lua.resume(0);
 						}

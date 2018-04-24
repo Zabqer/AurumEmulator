@@ -47,7 +47,7 @@ bool Machine::start() {
 		switch (state.top()) {
 				case State::Stopped:
 						onChanged();
-						if (!AurumConfig.ignorePower && energyBuffer < (AurumConfig.computerCost/* * AurumConfig.tickFrequency*/)) {
+						if (!AurumConfig.ignorePower && energyBuffer < (AurumConfig.computerCost * AurumConfig.tickFrequency)) {
 								crash("No energy");
 								return false;
 						} else if (!architecture || maxComponents == 0) {
@@ -467,7 +467,15 @@ void Machine::setUsedMemory(size_t memory) {
 }
 
 std::optional<Machine::Signal> Machine::popSignal() {
-
+		logC("Machine::popSignal()");
+		synchronized(signals_mutex);
+		if (signals.size() > 0) {
+				Signal signal = signals.front();
+				signals.pop();
+				return {signal};
+		} else {
+				return {};
+		}
 }
 
 bool Machine::signal(Signal signal) {

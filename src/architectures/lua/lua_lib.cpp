@@ -15,6 +15,7 @@ LuaLib::LuaLib(const std::string version) {
 		getL(("liblua" + version + ".so").c_str());
 		getF(lua_callk);
 		getF(luaL_checktype);
+		getF(luaL_checkinteger);
 		getF(luaL_checklstring);
 		getF(lua_createtable);
 		getF(lua_gc);
@@ -64,9 +65,14 @@ void LuaLib::checkType(Lua::State state, int index, int type) {
 		wrap(luaL_checktype, void, Lua::State, int, int)(state, index, type);
 }
 
+Lua::Integer LuaLib::checkInteger(Lua::State state, int index) {
+		logC("LuaLib::checkInteger()");
+		return wrap(luaL_checkinteger, Lua::Integer, Lua::State, int)(state, index);
+}
+
 std::string LuaLib::checkString(Lua::State state, int index) {
 		logC("LuaLib::checkString()");
-		return wrap(luaL_checklstring, const char*, Lua::State, int)(state, index);
+		return wrap(luaL_checklstring, const char*, Lua::State, int, size_t*)(state, index, NULL);
 }
 
 void LuaLib::createTable(Lua::State state, int a, int b) {
@@ -184,9 +190,9 @@ void LuaLib::rawSet(Lua::State state, int index) {
 		wrap(lua_rawset, void, Lua::State, int)(state, index);
 }
 
-void LuaLib::rawSetI(Lua::State state, int index, int i) {
+void LuaLib::rawSetI(Lua::State state, int index, Lua::Integer i) {
 		logC("LuaLib::rawSetI()");
-		wrap(lua_rawseti, void, Lua::State, int, int)(state, index, i);
+		wrap(lua_rawseti, void, Lua::State, int, Lua::Integer)(state, index, i);
 }
 
 void LuaLib::remove(Lua::State state, int index) {
@@ -265,6 +271,10 @@ void Lua::call(int argc, int resc) {
 
 void Lua::checkType(int index, int type) {
 		luaWrapper->checkType(state, index, type);
+}
+
+Lua::Integer Lua::checkInteger(int index) {
+		return luaWrapper->checkInteger(state, index);
 }
 
 std::string Lua::checkString(int index) {
@@ -347,7 +357,7 @@ void Lua::pushNil() {
 		luaWrapper->pushNil(state);
 }
 
-void Lua::pushNumber(Lua::Number value) {
+void Lua::pushNumber(Number value) {
 		luaWrapper->pushNumber(state, value);
 }
 
@@ -359,7 +369,7 @@ void Lua::rawSet(int index) {
 		luaWrapper->rawSet(state, index);
 }
 
-void Lua::rawSetI(int index, int i) {
+void Lua::rawSetI(int index, Integer i) {
 		luaWrapper->rawSetI(state, index, i);
 }
 
