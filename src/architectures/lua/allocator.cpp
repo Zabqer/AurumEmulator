@@ -3,6 +3,8 @@
 
 #include "../../log.h"
 
+class no_memory {};
+
 void* allocator(void* ud, void* ptr, size_t osize, size_t nsize) {
 		Machine* machine = static_cast<Machine*>(ud);
 		if (nsize == 0) {
@@ -18,7 +20,8 @@ void* allocator(void* ud, void* ptr, size_t osize, size_t nsize) {
 				}
 				if ((machine->getUsedMemory() + delta) > machine->getTotalMemory()) {
 						logW("Out of memory!");
-						//throw NoMemory();
+						//throw no_memory();
+						machine->crash("Out of memory!");
 						return NULL;
 				} else {
 						machine->setUsedMemory(machine->getUsedMemory() + delta);

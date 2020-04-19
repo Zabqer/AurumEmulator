@@ -3,14 +3,14 @@
 
 #include <string>
 
+#include <yaml-cpp/yaml.h>
+
 #include "component.h"
 
 class RAM: public Component, CallBudget {
 		public:
 				static const std::string TYPE;
-				RAM();
-				void save(int&);
-				void load(int);
+				RAM(Machine*);
 				size_t amount();
 				double callBudget() override;
 };

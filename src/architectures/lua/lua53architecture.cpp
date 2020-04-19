@@ -1,6 +1,7 @@
 #include "lua53architecture.h"
 #include "lua_lib.h"
 #include "allocator.h"
+#include "../../machine.h"
 #include "../../log.h"
 #include "../../resources/machine_lua.h"
 #include "computer_api.h"
@@ -9,6 +10,8 @@
 #include "system_api.h"
 #include "userdata_api.h"
 #include "c2lua.h"
+
+#include <assert.h>
 
 Lua53Architecture::Lua53Architecture() {}
 

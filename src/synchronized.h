@@ -7,6 +7,6 @@
 #define CONCAT(a, b) CONCATT(a, b)
 #define QUOTE(a) #a
 
-#define synchronized(mutex) std::scoped_lock CONCAT(lock_, mutex)(mutex)
+#define synchronized(mutex) std::scoped_lock CONCAT(lock_line_, __LINE__)(mutex)
 
 #endif

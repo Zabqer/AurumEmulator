@@ -6,6 +6,7 @@
 #include <string>
 
 class Machine;
+class Component;
 
 class Null {};
 
@@ -17,7 +18,11 @@ class Context {
 				bool pause(double);
 				bool tryChangeBuffer(double);
 				void consumeCallBudget(double);
+				std::vector<Component*> components();
+				Component* componentByAddress(std::string);
+				void signal(std::string, std::vector<std::any>);
 };
+
 
 class Arguments: public std::vector<std::any>  {
 		private:
@@ -30,6 +35,8 @@ class Arguments: public std::vector<std::any>  {
 				Arguments(std::initializer_list<std::any> args_);
 		Arguments();
 		std::any checkAny(unsigned int);
+		bool checkBoolean(unsigned int);
+		bool optBoolean(unsigned int, bool);
 		int checkInteger(unsigned int);
 		bool isString(unsigned int);
 		std::string checkString(unsigned int);

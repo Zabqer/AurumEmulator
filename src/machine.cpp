@@ -1,34 +1,67 @@
 #include "machine.h"
 #include "log.h"
 #include "synchronized.h"
-#include "components/computer.h"
-#include "components/CPU.h"
-#include "components/RAM.h"
+#include "components/cpu.h"
+#include "components/ram.h"
+#include "components/gpu.h"
+#include "components/filesystem.h"
+#include "utils/sdl_helper.h"
 
-#include <thread>
-#include <boost/asio/post.hpp>
-
-//TODO: config `threads` value
-boost::asio::thread_pool Machine::threadPool(1);
+ThreadPool Machine::threadPool;
 
 Machine::Signal::Signal(std::string name_, std::vector<std::any> args_): name(name_), std::vector<std::any>(args_) {}
+Machine::Signal::Signal(std::string name_, std::initializer_list<std::any> args_): name(name_), std::vector<std::any>(args_) {}
 
-Machine::Machine() {
+Machine::Machine(): Component(this, "computer") {
 		logC("Machine::Machine()");
+		setMethod("start", {callback: wrapMethod(start), doc: "function():boolean -- Starts the computer. Returns true if the state changed."});
+		setMethod("stop", {callback: wrapMethod(stop), doc: "function():boolean -- Stops the computer. Returns true if the state changed."});
+		setMethod("isRunning", {callback: wrapMethod(isRunning), doc: "function():boolean -- Returns whether the computer is running.", direct: true});
+		setMethod("beep", {callback: wrapMethod(beep), doc: ""});
+		setMethod("getDeviceInfo", {callback: wrapMethod(getDeviceInfo), doc: "function():table -- Collect information on all connected devices.", true});
+		setMethod("getProgramLocations", {callback: wrapMethod(getProgramLocations), doc: "function():table -- Returns a map of program name to disk label for known programs."});
 		state.push(State::Stopped);
+		useSDL();
+		energyBuffer = 9999999999999999;
 }
 
-void Machine::load(std::string address_) {
+Machine::~Machine() {
+		logC("Machine::~Machine()");
+		freeSDL();
+}
+
+void Machine::load(YAML::Node node) {
 		logC("Machine::load()");
-		_address = address_;
-		Computer* computer = new Computer;
-		computer->load(_address, this);
-		_components.push_back(computer);
+		Component::load(node);
+		_components.push_back(this);
+		FileSystem* tmp = new FileSystem(this);
+		YAML::Node n;
+		n["address"] = "tmp";
+		tmp->load(n);
+		tmpfs = tmp;
+		_components.push_back(tmp);
+		for (YAML::Node componentNode : node["components"]) {
+				Component* component = ComponentRegistry::allocate(this, componentNode["type"].as<std::string>());
+				if (!component) {
+						logE("Unknown component type: \"" << componentNode["type"].as<std::string>() << "\"");
+						return;
+				}
+				component->load(componentNode);
+				_components.push_back(component);
+		}
 }
 
-void Machine::save(std::string& address_) {
+void Machine::save(YAML::Node& node) {
 		logC("Machine::save()");
-		address_ = _address;
+		Component::save(node);
+		for (Component* component : _components) {
+				if (component->type() == "computer" || component->address() == "tmp") {
+						continue;
+				}
+				YAML::Node componentNode;
+				component->save(componentNode);
+				node["components"].push_back(componentNode);
+		}
 }
 
 void Machine::addComponent(Component* component) {
@@ -119,7 +152,7 @@ void Machine::onChanged() {
 				maxCallBudget = 1.0;
 		} else {
 				double sum = 0;
-				for (double callBudget :callBudgets) {
+				for (double callBudget : callBudgets) {
 						sum += callBudget;
 				}
 				maxCallBudget = sum / callBudgets.size();
@@ -187,10 +220,9 @@ Machine::State Machine::switchTo(State newState) {
 		state.push(newState);
 		if (newState == State::Yielded || newState == State::SynchronizedReturn) {
 				remainIdle = 0;
-				boost::asio::post(threadPool, [this] {
-						std::this_thread::sleep_for(std::chrono::milliseconds((int) AurumConfig.startupDelay * 1000));
+				threadPool.post([this] {
 						this->run();
-				});
+				}, std::chrono::milliseconds((int) AurumConfig.startupDelay * 1000)) ;
 		}
 		return oldState;
 }
@@ -280,22 +312,46 @@ void Machine::run() {
 				}
 		} catch (std::exception ex) {
 				//TODO: handle exception
+				logE(ex.what());
 				throw ex;
 		}
 		cpuTotal += clock() - cpuStart;
 }
 
 void Machine::crash(std::string message) {
-		logE(message);
-		exit(0);
+		logE("Machine crashed: " << message);
+		for (Component* component : _components) {
+				if (component->type() == GPU::TYPE) {
+						((GPU*) component)->onError(Context(this), message);
+						break;
+				}
+		}
+		close();
+		crashed = true;
+}
+
+bool Machine::isCrashed() {
+	return crashed;
 }
 
 void Machine::beep(std::string pattern) {
-		logC("Machine::beep()");
-};
+		logW("Machine::beep(" << pattern <<")");
+}
 
 void Machine::update() {
 		logC("Machine::update()");
+		//logD("Memory: " << usedMemory << "/" << totalMemory);
+		sdlEvents.clear();
+		SDL_Event event;
+		while (SDL_PollEvent(&event)) {
+				sdlEvents.push_back(event);
+		}
+		for (Component* component : _components) {
+				if (component->type() == "computer") {
+						continue;
+				}
+				component->update();
+		}
 		if (componentCount > maxComponents) {
 				crash("Component Overflow");
 				return;
@@ -447,7 +503,7 @@ void Machine::close() {
 				cpuStart = 0;
 				remainIdle = 0;
 		}
-		exit(0);
+			crashed = false;
 }
 
 size_t Machine::getTotalMemory() {
@@ -517,15 +573,13 @@ Component* Machine::componentByAddress(std::string address) {
 		throw std::invalid_argument("no such component");
 }
 
-
-
 std::map<std::string, Method> Machine::methods(std::string address) {
-		logC("Machine::methods()");
+		logC("Machine::methods(" << address << ")");
 		return componentByAddress(address)->methods();
 }
 
 Arguments Machine::invoke(std::string address, std::string methodn, Arguments args) {
-		logC("Machine::invoke()");
+		logC("Machine::invoke(" << address << ", " << methodn << ")");
 		Component* component = componentByAddress(address);
 		if (!component->methods().count(methodn)) {
 				throw std::invalid_argument("no such method");
@@ -534,11 +588,12 @@ Arguments Machine::invoke(std::string address, std::string methodn, Arguments ar
 		if (method.direct) {
 				consumeCallBudget(1 / method.limit);
 		}
-		logD("Invoking: `" << methodn << "`")
+		logD("Invoking: \"" << methodn << "\"");
 		return method.callback(Context(this), args);
 }
 
 std::string Machine::documentation(std::string address, std::string method) {
+		logC("Machine::documentation(" << address << ", " << method << ")");
 		Component* component = componentByAddress(address);
 		if (!component->methods().count(method)) {
 				throw std::invalid_argument("no such method");
@@ -554,6 +609,37 @@ Component* Machine::tmpFS() {
 		return tmpfs;
 }
 
-std::string Machine::address() {
-		return _address;
+METHOD(Machine, start) {
+		logC("Machine::start()");
+		return {start()};
+}
+
+METHOD(Machine, stop) {
+		logC("Machine::stop()");
+		return {stop()};
+}
+
+METHOD(Machine, isRunning) {
+		logC("Machine::isRunning()");
+		return {isRunning()};
+}
+
+METHOD(Machine, beep) {
+		logC("Machine::beep()");
+		
+		return {Null()};
+}
+
+METHOD(Machine, getDeviceInfo) {
+		logC("Machine::getDeviceInfo()");
+		logW("Called not implemented function: Computer::getDeviceInfo()");
+		std::map<std::any, std::any>n{};
+		return {n};
+}
+
+METHOD(Machine, getProgramLocations) {
+		logC("Machine::getProgramLocations()");
+		logW("Called not implemented function: Computer::getProgramLocations()");
+		std::map<std::any, std::any>n{};
+		return {n};
 }

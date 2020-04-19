@@ -1,8 +1,11 @@
-#include "EEPROM.h"
+#include "eeprom.h"
 
 #include <fstream>
 #include <sstream>
-#include <boost/filesystem.hpp>
+
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "../resources/bios_lua.h"
 #include "../log.h"
@@ -11,7 +14,7 @@
 
 const std::string EEPROM::TYPE = "eeprom";
 
-EEPROM::EEPROM(): Component(TYPE) {
+EEPROM::EEPROM(Machine* machine): Component(machine, TYPE) {
 		logC("EEPROM::EEPROM()");
 		setMethod("get", {callback: wrapMethod(get), doc: "function():string -- Get the currently stored byte array.", direct: true});
 		setMethod("set", {callback: wrapMethod(set), doc: "function(data:string) -- Overwrite the currently stored byte array."});
@@ -25,13 +28,13 @@ EEPROM::EEPROM(): Component(TYPE) {
 		setMethod("setData", {callback: wrapMethod(setData), doc: "function(data:string) -- Overwrite the currently stored byte array."});
 }
 
-void EEPROM::save(std::string& address_, std::string& label_, bool& ro_) {
+void EEPROM::save(YAML::Node& node) {
 		logC("EEPROM::save()");
-		address_ = _address;
-		label_ = label;
-		ro_ = ro;
-		if (!boost::filesystem::exists(basePath)) {
-				boost::filesystem::create_directory(basePath);
+		Component::save(node);
+		node["label"] = label;
+		node["read-only"] = ro;
+		if (access(basePath.c_str(), F_OK) == -1) {
+				mkdir(basePath.c_str(), 777);
 		}
 		std::ofstream oc(basePath + "code");
 		if (oc.is_open()) {
@@ -45,11 +48,11 @@ void EEPROM::save(std::string& address_, std::string& label_, bool& ro_) {
 		}
 }
 
-void EEPROM::load(std::string address_, std::string label_, bool ro_) {
+void EEPROM::load(YAML::Node node) {
 		logC("EEPROM::load()");
-		_address = address_;
-		label = label_;
-		ro = ro_;
+		Component::load(node);
+		label = node["label"].as<std::string>("EEPROM");
+		ro = node["read-only"].as<bool>(false);
 		basePath = AurumConfig.envPath + "/" + _address + "/";
 		std::ifstream ic(basePath + "code");
 		if (ic.is_open()) {

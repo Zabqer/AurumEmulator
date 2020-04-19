@@ -7,6 +7,8 @@
 #include <functional>
 #include <limits>
 
+#include <yaml-cpp/yaml.h>
+
 #include "../arguments.h"
 
 class Machine;
@@ -38,7 +40,8 @@ class Callable {
 };
 
 class Userdata: public Callable {
-
+		public:
+				virtual ~Userdata() = default;
 };
 
 #define DMETHOD(name) Arguments name(Context, Arguments)
@@ -54,15 +57,39 @@ class Component: public Callable {
 				std::string _address;
 				std::string _type;
 				bool _internal;
-				int _tier = 0;
+				unsigned int _tier = 0;
+				unsigned int maxTier = 0;
 				Slot _slot = Slot::Unknown;
+				Machine* machine = NULL;
 		public:
-				Component(std::string, bool = false);
+				Component(Machine*, std::string, bool = false);
 				std::string type();
 				std::string address();
 				int tier();
 				Slot slot();
 				bool internal();
+				virtual void save(YAML::Node&);
+				virtual void load(YAML::Node);
+				virtual void update();	
+};
+
+class ComponentHolderBase {
+		public:
+				virtual Component* allocate(Machine*) = 0;
+};
+
+template<typename T>
+class ComponentHolder: public ComponentHolderBase {
+		public:
+				Component* allocate(Machine*);
+};
+
+class ComponentRegistry {
+		private:
+				static std::map<std::string, ComponentHolderBase*> components;
+		public:
+				static void registerComponent(std::string, ComponentHolderBase*);
+				static Component* allocate(Machine*, std::string);
 };
 
 #endif

@@ -3,7 +3,7 @@
 
 int invokeAPI(Lua::State state) {
 		logC("invokeAPI()");
-		Lua lua = Lua(luaLibs["5.3"], state);
+		Lua lua(luaLibs["5.3"], state);
 		void* func = lua.toUserdata(Lua::RegistryIndex - 1);
 		void* ud;
 		lua.getAllocF(&ud);

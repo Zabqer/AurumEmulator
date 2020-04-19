@@ -13,6 +13,10 @@ std::map<std::string, LuaLib*> luaLibs = {{"5.3", new LuaLib("5.3")}};
 LuaLib::LuaLib(const std::string version) {
 		logC("LuaLib::LuaLib()");
 		getL(("liblua" + version + ".so").c_str());
+		if (!lib) {
+			logE("Cant load lib: liblua" << version << ".so");
+			abort();
+		}
 		getF(lua_callk);
 		getF(luaL_checktype);
 		getF(luaL_checkinteger);
@@ -131,7 +135,7 @@ Lua LuaLib::newState(Lua::Allocator allocator, void* ud) {
 }
 
 void* LuaLib::newUserdata(Lua::State state, size_t size) {
-		logC("LuaLib::newUserdata()");
+		logC("LuaLib::newUserdata(" << state << ", " << size << ")");
 		return wrap(lua_newuserdata, void*, Lua::State, size_t)(state, size);
 }
 
@@ -181,7 +185,7 @@ void LuaLib::pushNumber(Lua::State state, Lua::Number value) {
 }
 
 void LuaLib::pushString(Lua::State state, std::string value) {
-		logC("LuaLib::pushString()");
+		logC("LuaLib::pushString(" << value << ")");
 		wrap(lua_pushstring, void, Lua::State, const char*)(state, value.c_str());
 }
 
@@ -203,7 +207,9 @@ void LuaLib::remove(Lua::State state, int index) {
 
 int LuaLib::resume(Lua::State state, int argc) {
 		logC("LuaLib::resume()");
-		return wrap(lua_resume, int, Lua::State, Lua::State, int)(state, NULL, argc);
+		int* resc = new int;
+		return wrap(lua_resume, int, Lua::State, Lua::State, int, int*)(state, NULL, argc, resc);
+		delete resc;
 }
 
 void LuaLib::rotate(Lua::State state, int index, int n) {
@@ -243,7 +249,7 @@ bool LuaLib::toBoolean(Lua::State state, int index) {
 
 Lua::Number LuaLib::toNumber(Lua::State state, int index) {
 		logC("LuaLib::toNumber()");
-		return wrap(lua_tonumberx, Lua::Number, Lua::State, int, int*)(state, index, NULL);
+		return wrap(lua_tonumberx, Lua::Number, Lua::State, int, void*)(state, index, NULL);
 }
 
 std::string LuaLib::toString(Lua::State state, int index) {

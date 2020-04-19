@@ -1,5 +1,6 @@
 #include "lua2c.h"
 #include "../../log.h"
+#include "../../arguments.h"
 
 std::vector<std::any> lua2c(Lua lua) {
 		logC("lua2c()");
@@ -30,7 +31,7 @@ std::vector<std::any> lua2c(Lua lua) {
 								break;
 						default:
 								logE("lua2c: " << lua.type(i));
-								exit(1);
+								abort();
 				}
 		}
 		lua.pop(top);

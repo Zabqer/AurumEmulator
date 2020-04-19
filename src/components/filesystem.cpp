@@ -5,7 +5,13 @@
 #include "../synchronized.h"
 
 #include <limits>
-#include <boost/filesystem.hpp>
+#include <experimental/filesystem>
+
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <cstring>
 
 const std::string FileSystem::TYPE = "filesystem";
 
@@ -13,7 +19,7 @@ const double FileSystem::readCosts[6] = {1 / 1, 1 / 4, 1 / 7, 1 / 10, 1 / 13, 1 
 const double FileSystem::seekCosts[6] = {1 / 1, 1 / 4, 1 / 7, 1 / 10, 1 / 13, 1 / 15};
 const double FileSystem::writeCosts[6] = {1 / 1, 1 / 2, 1 / 3, 1 / 4, 1 / 5, 1 / 6};
 
-FileSystem::FileSystem(): Component(TYPE) {
+FileSystem::FileSystem(Machine* machine): Component(machine, TYPE) {
 		logC("FileSystem::FileSystem()");
 		setMethod("getLabel", {callback: wrapMethod(getLabel), doc: "function():string -- Get the current label of the drive.", direct: true});
 		setMethod("setLabel", {callback: wrapMethod(setLabel), doc: "function(value:string):string -- Sets the label of the drive. Returns the new value, which may be truncated."});
@@ -33,10 +39,12 @@ FileSystem::FileSystem(): Component(TYPE) {
 		setMethod("read", {callback: wrapMethod(read), doc: "function(handle:userdata, count:number):string or nil -- Reads up to the specified amount of data from an open file descriptor with the specified handle. Returns nil when EOF is reached.", direct: true, limit: 15});
 		setMethod("seek", {callback: wrapMethod(seek), doc: "function(handle:userdata, whence:string, offset:number):number -- Seeks in an open file descriptor with the specified handle. Returns the new pointer position.", direct: true});
 		setMethod("write", {callback: wrapMethod(write), doc: "function(handle:userdata, value:string):boolean -- Writes the specified data to an open file descriptor with the specified handle.", direct: true});
+		maxTier = 2;
 }
 
 FileSystem::FileHandle::FileHandle(FileSystem* fs_, std::string path, std::ios::openmode mode): fs(fs_), stream(path, mode) {
 		logC("FileHandle::FileHandle()");
+		this->path = path;
 }
 
 FileSystem::FileHandle::~FileHandle() {
@@ -111,32 +119,41 @@ std::ios::openmode parseMode(std::string mode) {
 }
 
 FileSystem::FileHandle* checkHandle(Arguments& args, unsigned int index) {
-		if (args.checkAny(index).type() == typeid(FileSystem::FileHandle*)) {
-				return std::any_cast<FileSystem::FileHandle*>(args.checkAny(index));
+		std::any val = args.checkAny(index);
+		if (val.type() == typeid(Userdata*)) {
+				FileSystem::FileHandle* handle = dynamic_cast<FileSystem::FileHandle*>(std::any_cast<Userdata*>(val));
+				if (handle) {
+						return handle;
+				}
 		}
+		/*if (args.checkAny(index).type() == typeid(FileSystem::FileHandle*)) {
+				return std::any_cast<FileSystem::FileHandle*>(args.checkAny(index));
+		}*/
 		throw std::runtime_error("bad file descriptor");
 }
 
-void FileSystem::save(std::string& address_, int& tier_, std::optional<std::string>& label_, bool& ro_) {
+void FileSystem::save(YAML::Node& node) {
 		logC("FileSystem::save()");
-		address_ = _address;
-		tier_ = _tier;
-		label_ = label;
-		ro_ = ro;
+		Component::save(node);
+		if (label) {
+				node["label"] = *label;
+		}
+		node["read-only"] = ro;
 }
 
-void FileSystem::load(std::string address_, int tier_, std::optional<std::string> label_, bool ro_) {
+void FileSystem::load(YAML::Node node) {
 		logC("FileSystem::load()");
-		_address = address_;
+		Component::load(node);
 		root = AurumConfig.envPath + "/" + _address + "/";
-		if (!boost::filesystem::exists(root)) {
-				boost::filesystem::create_directory(root);
+		if (access(root.c_str(), F_OK) == -1) {
+				mkdir(root.c_str(), 777);
 		}
-		_tier = tier_;
-		speed = _tier > 1 ? _tier + 2 : _tier;
-		_spaceTotal = AurumConfig.hddSizes[_tier - 1] * 1024;
-		label = label_;
-		ro = ro_;
+		speed = _tier > 0 ? _tier + 1 : _tier;
+		_spaceTotal = AurumConfig.hddSizes[_tier] * 1024;
+		try {
+				label = node["label"].as<std::string>();
+		} catch (...) {}
+		ro = node["read-only"].as<bool>(false);
 }
 
 void FileSystem::close(FileHandle* handle) {
@@ -148,7 +165,7 @@ METHOD(FileSystem, getLabel) {
 		logC("FileSystem::getLabel()");
 		synchronized(filesystem_mutex);
 		if (label) {
-				return {label.value()};
+				return {*label};
 		} else {
 				return {Null()};
 		}
@@ -162,7 +179,7 @@ METHOD(FileSystem, setLabel) {
 				return {Null()};
 		} else {
 				label = args.checkString(0).substr(0, 16);
-				return {label.value()};
+				return {*label};
 		}
 }
 
@@ -191,25 +208,31 @@ METHOD(FileSystem, spaceUsed) {
 METHOD(FileSystem, exists) {
 		logC("FileSystem::exists()");
 		synchronized(filesystem_mutex);
-		return {boost::filesystem::exists(cleanPath(root, args.checkString(0)))};
+		return {access(cleanPath(root, args.checkString(0)).c_str(), F_OK) == 0};
 }
 
 METHOD(FileSystem, size) {
 		logC("FileSystem::size()");
 		synchronized(filesystem_mutex);
-		return {boost::filesystem::file_size(cleanPath(root, args.checkString(0)))};
+		struct stat st;
+		stat(cleanPath(root, args.checkString(0)).c_str(), &st);
+		return {st.st_size};
 }
 
 METHOD(FileSystem, isDirectory) {
 		logC("FileSystem::isDirectory()");
 		synchronized(filesystem_mutex);
-		return {boost::filesystem::is_directory(cleanPath(root, args.checkString(0)))};
+		struct stat st;
+		stat(cleanPath(root, args.checkString(0)).c_str(), &st);
+		return {(bool) S_ISDIR(st.st_mode)};
 }
 
 METHOD(FileSystem, lastModified) {
 		logC("FileSystem::lastModified()");
 		synchronized(filesystem_mutex);
-		//return {boost::filesystem::is_directory(cleanPath(basePath, args.checkString(0)))};
+		struct stat st;
+		stat(cleanPath(root, args.checkString(0)).c_str(), &st);
+		return {st.st_mtime};
 }
 
 METHOD(FileSystem, list) {
@@ -217,8 +240,17 @@ METHOD(FileSystem, list) {
 		synchronized(filesystem_mutex);
 		std::string path = cleanPath(root, args.checkString(0));
 		std::vector<std::any> entries;
-		for(boost::filesystem::directory_entry& entry : boost::filesystem::directory_iterator(path)) {
-						entries.push_back(entry.path().filename().string());
+		struct dirent* dir;
+		DIR* d = opendir(path.c_str());
+		if (d) {
+				while ((dir = readdir(d)) != NULL) {
+					if (strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..")) {
+		 				entries.push_back(std::string(dir->d_name));
+					}
+				}
+				closedir(d);
+		} else {
+				return {Null()};
 		}
 		return {entries};
 }
@@ -226,23 +258,27 @@ METHOD(FileSystem, list) {
 METHOD(FileSystem, makeDirectory) {
 		logC("FileSystem::makeDirectory()");
 		synchronized(filesystem_mutex);
-		return {boost::filesystem::create_directories(cleanPath(root, args.checkString(0)))};
+		return {(bool) mkdir(cleanPath(root, args.checkString(0)).c_str(), 777)};
 }
 
 METHOD(FileSystem, remove) {
 		logC("FileSystem::remove()");
 		synchronized(filesystem_mutex);
-		boost::system::error_code ec;
-		boost::filesystem::remove_all(cleanPath(root, args.checkString(0)), ec);
-		return {!ec};
+		logE("FS REMOVE");
+		abort();
+		//boost::system::error_code ec;
+		//boost::filesystem::remove_all(cleanPath(root, args.checkString(0)), ec);
+		//return {!ec};
 }
 
 METHOD(FileSystem, rename) {
 		logC("FileSystem::rename()");
 		synchronized(filesystem_mutex);
-		boost::system::error_code ec;
-		boost::filesystem::rename(cleanPath(root, args.checkString(0)), cleanPath(root, args.checkString(1)), ec);
-		return {!ec};
+		logE("FS RENAME");
+		abort();
+		//boost::system::error_code ec;
+		//boost::filesystem::rename(cleanPath(root, args.checkString(0)), cleanPath(root, args.checkString(1)), ec);
+		//return {!ec};
 }
 
 METHOD(FileSystem, close) {
@@ -255,10 +291,11 @@ METHOD(FileSystem, close) {
 		close(handle);
 		return {true};
 }
+
 METHOD(FileSystem, open) {
 		logC("FileSystem::open()");
 		synchronized(filesystem_mutex);
-		if (handles.size() >= AurumConfig.maxOpenHandles) {
+		if (handles.size() >= AurumConfig.maxHandles) {
 				throw std::runtime_error("too many open handles");
 		}
 		std::string path = cleanPath(root, args.checkString(0));
@@ -266,14 +303,16 @@ METHOD(FileSystem, open) {
 		if (ro && (mode == std::ios::out ||mode == std::ios::app)) {
 				throw std::runtime_error("read-only filesystem");
 		}
-		if (mode == std::ios::in && (!boost::filesystem::exists(path) || boost::filesystem::is_directory(path))) {
+		struct stat st;
+		stat(path.c_str(), &st);
+		if (mode == std::ios::in && (access(path.c_str(), F_OK) == -1 || S_ISDIR(st.st_mode))) {
 				throw std::runtime_error("file not found");
 		}
 		FileHandle* handle = new FileHandle(this, path, mode);
 		if (handle->stream.is_open()) {
 				handles.insert(handle);
 		}
-		return {handle};
+		return {(Userdata*)handle};
 }
 
 METHOD(FileSystem, read) {
@@ -284,11 +323,12 @@ METHOD(FileSystem, read) {
 		if (!handles.count(handle)) {
 				throw std::runtime_error("bad file descriptor");
 		}
+		logD(handle->path);
 		size_t cur = handle->stream.tellg();
 		handle->stream.seekg(0, std::ios::end);
-		size_t remain = handle->stream.tellg() - cur;
+		size_t remain = ((size_t) handle->stream.tellg()) - cur;
 		handle->stream.seekg(cur, std::ios::beg);
-		size_t n = std::min<size_t>({remain, AurumConfig.maxReadBuffer, std::max<size_t>(0, args.checkInteger(1))});
+		size_t n = std::min<size_t>({remain, (unsigned int) AurumConfig.maxReadBuffer, std::max<size_t>(0, args.checkInteger(1))});
 		if (remain == 0 || handle->stream.eof()) {
 				return {Null()};
 		}

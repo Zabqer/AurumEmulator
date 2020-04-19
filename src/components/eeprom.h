@@ -3,6 +3,8 @@
 
 #include <string>
 
+#include <yaml-cpp/yaml.h>
+
 #include "component.h"
 
 class EEPROM: public Component {
@@ -14,9 +16,9 @@ class EEPROM: public Component {
 				std::string data;
 		public:
 				static const std::string TYPE;
-				EEPROM();
-				void save(std::string&, std::string&, bool&);
-				void load(std::string, std::string, bool);
+				EEPROM(Machine*);
+				void save(YAML::Node&) override;
+				void load(YAML::Node) override;
 				DMETHOD(get);
 				DMETHOD(set);
 				DMETHOD(getLabel);

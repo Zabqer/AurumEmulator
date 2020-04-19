@@ -3,19 +3,20 @@
 
 #include <string>
 
+#include <yaml-cpp/yaml.h>
+
 #include "component.h"
 #include "../architectures/architecture.h"
 
 class CPU: public Component, CallBudget {
 		private:
 				Architecture* _architecture;
-				std::string _architectureName;
-				int _tier = 0;
+				std::string architectureName;
 		public:
 				static const std::string TYPE;
-				CPU();
-				void save(int&, std::string&);
-				void load(int, std::string);
+				CPU(Machine*);
+				void save(YAML::Node&) override;
+				void load(YAML::Node) override;
 				Architecture* architecture();
 				int supportedComponents();
 				double callBudget() override;

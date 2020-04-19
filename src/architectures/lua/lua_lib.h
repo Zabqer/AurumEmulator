@@ -21,7 +21,7 @@ class Lua {
 				typedef intptr_t KContext;
 				typedef int (* KFunction) (State, int, KContext);
 				typedef long long Integer;
-				typedef long double Number;
+				typedef double Number;
 				typedef unsigned int Unsigned;
 				static const inline int Yield = 1;
 				static const inline int GCCollect = 2;

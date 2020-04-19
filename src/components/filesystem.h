@@ -7,6 +7,8 @@
 #include <set>
 #include <fstream>
 
+#include <yaml-cpp/yaml.h>
+
 #include "component.h"
 
 class FileSystem: public Component {
@@ -15,6 +17,7 @@ class FileSystem: public Component {
 						private:
 								FileSystem* fs;
 						public:
+								std::string path;
 								std::fstream stream;
 								FileHandle(FileSystem*, std::string path, std::ios::openmode);
 								~FileHandle();
@@ -33,9 +36,9 @@ class FileSystem: public Component {
 				static const double writeCosts[6];
 		public:
 				static const std::string TYPE;
-				FileSystem();
-				void save(std::string&, int&,  std::optional<std::string>&, bool&);
-				void load(std::string, int, std::optional<std::string>, bool);
+				FileSystem(Machine* machine);
+				void save(YAML::Node&) override;
+				void load(YAML::Node) override;
 				void close(FileHandle*);
 				DMETHOD(getLabel);
 				DMETHOD(setLabel);

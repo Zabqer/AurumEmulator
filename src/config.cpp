@@ -3,190 +3,118 @@
 #include "log.h"
 
 #include <yaml-cpp/yaml.h>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
 
-#include "components/aurum_debug.h"
-#include "components/CPU.h"
-#include "components/RAM.h"
-#include "components/EEPROM.h"
+#include "machine.h"
+#include "components/cpu.h"
+#include "components/ram.h"
+#include "components/eeprom.h"
 #include "components/filesystem.h"
-
-boost::uuids::random_generator uuid_generator;
+#include "components/gpu.h"
+#include "components/screen.h"
 
 AurumConfig_t AurumConfig;
 
-//TODO: improve readability
+const PointXY AurumConfig_t::screenResolutionsByTier[3] {{50, 16}, {80, 25}, {160, 50}};
+const ColorDepth AurumConfig_t::screenDepthByTier[3] {ColorDepth::OneBit, ColorDepth::FourBit, ColorDepth::EightBit};
+const unsigned int AurumConfig_t::basicScreenPixels = AurumConfig_t::screenResolutionsByTier[0].x * AurumConfig_t::screenResolutionsByTier[0].y;
 
-void AurumConfigFromYAML(std::string yaml, std::vector<Machine*>& machines, bool* forcecall, bool* forcedebug) {
+void AurumConfigFromYAML(std::string yaml) {
+		logC("AurumConfigFromYAML()");
 		YAML::Node root = YAML::Load(yaml);
-		AurumConfig.logging_call = !forcecall ?	root["logging"]["call"].as<bool>(false) : *forcecall;
-		AurumConfig.logging_debug = !forcedebug ? root["logging"]["debug"].as<bool>(false) : *forcedebug;
-		AurumConfig.threads = root["computer"]["threads"].as<int>(4);
-		AurumConfig.timeout = root["computer"]["timeout"].as<double>(5.0);
+		AurumConfig.logging_call = root["logging"]["call"].as<bool>(false);
+		AurumConfig.logging_debug = root["logging"]["debug"].as<bool>(false);
+		AurumConfig.threads = std::max(root["computer"]["threads"].as<size_t>(4), (size_t) 1);
+		Machine::threadPool.resize(AurumConfig.threads);
+		AurumConfig.timeout = std::max(root["computer"]["timeout"].as<double>(5.0), (double) 0);
+		AurumConfig.startupDelay = std::max(root["computer"]["startupDelay"].as<double>(0.25), 0.05);
 		AurumConfig.allowBytecode = root["computer"]["allowBytecode"].as<bool>(false);
 		AurumConfig.allowGC = root["computer"]["allowGC"].as<bool>(false);
-		AurumConfig.eepromSize = root["computer"]["eepromSize"].as<int>(4096);
-		AurumConfig.eepromDataSize = root["computer"]["eepromDataSize"].as<int>(256);
-		AurumConfig.startupDelay = root["computer"]["startupDelay"].as<double>(0.25);
-		AurumConfig.cpuComponentCount = root["computer"]["cpuComponentCount"].as<std::array<int, 4>>(std::array<int, 4>{8, 12, 16, 1024});
-		AurumConfig.callBudgets = root["computer"]["callBudgets"].as<std::array<double, 3>>(std::array<double, 3>{0.5, 1.0, 1.5});
-		AurumConfig.ramSizes = root["computer"]["ramSizes"].as<std::array<int, 6>>(std::array<int, 6>{192, 256, 384, 512, 768, 1024});
+		AurumConfig.eepromSize = std::max(root["computer"]["eepromSize"].as<size_t>(4096), (size_t) 0);
+		AurumConfig.eepromDataSize = std::max(root["computer"]["eepromDataSize"].as<size_t>(256), (size_t) 0);
+		AurumConfig.cpuComponentCount  = root["computer"]["cpuComponentCount"].as<std::array<size_t, 4>>(std::array<size_t, 4> {8, 12, 16, 1024});
+		AurumConfig.callBudgets = root["computer"]["callBudgets"].as<std::array<double, 3>>(std::array<double, 3> {0.5, 1.0, 1.5});
+		AurumConfig.ramSizes = root["computer"]["ramSizes"].as<std::array<size_t, 6>>(std::array<size_t, 6> {192, 256, 384, 512, 768, 1024});
 		AurumConfig.ignorePower = root["power"]["ignorePower"].as<bool>(false);
-		AurumConfig.tickFrequency = root["power"]["tickFrequency"].as<int>(10);
-		AurumConfig.computerCost = root["power"]["cost"]["computer"].as<double>(0.5);
-		AurumConfig.sleepCostFactor = root["power"]["cost"]["sleepFactor"].as<double>(0.1);
-		AurumConfig.hddReadCost = root["power"]["cost"]["hddRead"].as<double>(0.1);
-		AurumConfig.hddWriteCost = root["power"]["cost"]["hddWrite"].as<double>(0.25);
-		AurumConfig.eepromWriteCost = root["computer"]["cost"]["eepromWrite"].as<double>(50);
-		AurumConfig.hddSizes = root["filesystem"]["hddSizes"].as<std::array<int, 3>>(std::array<int, 3>{1024, 2048, 4096});
-		AurumConfig.maxOpenHandles = root["filesystem"]["openHandles"].as<int>(16);
-		AurumConfig.maxReadBuffer = root["filesystem"]["maxReadBuffer"].as<int>(2048);
-		try {
-				if (root["machines"].IsSequence()) {
-						for (YAML::Node node :root["machines"]) {
-								Machine* machine = new Machine;
-								machine->load(node["address"].as<std::string>(boost::uuids::to_string(uuid_generator())));
-								for (YAML::Node node :node["components"]) {
-										std::string type = node["type"].as<std::string>();
-										if (type == AurumDebug::TYPE) {
-												AurumDebug* aurum_debug = new AurumDebug;
-												aurum_debug->load(node["address"].as<std::string>(boost::uuids::to_string(uuid_generator())));
- 												machine->addComponent(aurum_debug);
-										} else if (type == CPU::TYPE) {
-												CPU* cpu = new CPU;
-												cpu->load(node["tier"].as<int>(1), node["arch"].as<std::string>("Lua 5.3"));
-												machine->addComponent(cpu);
-										} else if (type == RAM::TYPE) {
-												RAM* ram = new RAM;
-												ram->load(node["tier"].as<int>(1));
-												machine->addComponent(ram);
-										} else if (type == EEPROM::TYPE) {
-												EEPROM* eeprom = new EEPROM;
-												eeprom->load(node["address"].as<std::string>(boost::uuids::to_string(uuid_generator())), node["label"].as<std::string>("EEPROM"), node["read-only"].as<bool>(false));
-												machine->addComponent(eeprom);
-										} else if (type == FileSystem::TYPE) {
-												FileSystem* filesystem = new FileSystem;
-												filesystem->load(node["address"].as<std::string>(boost::uuids::to_string(uuid_generator())), node["tier"].as<int>(1), (node["label"].is(YAML::Node("")) ? std::optional<std::string>(node["label"].as<std::string>()) : std::optional<std::string>()), node["read-only"].as<bool>(false));
-												machine->addComponent(filesystem);
-										} else {
-												logW("Unsupported component type '" << type << "'; skipping");
-										}
-								}
-								machines.push_back(machine);
-						}
-				} else {
-						throw 0;
+		AurumConfig.tickFrequency = std::max(root["power"]["tickFrequency"].as<size_t>(10), (size_t) 1);
+		AurumConfig.computerCost = std::max(root["power"]["cost"]["computer"].as<double>(0.5), (double) 0);
+		AurumConfig.sleepCostFactor = std::max(root["power"]["cost"]["sleepFactor"].as<double>(0.1), (double) 0);
+		AurumConfig.hddReadCost = std::max(root["power"]["cost"]["hddRead"].as<double>(0.1), (double) 0) / 1024;
+		AurumConfig.hddWriteCost = std::max(root["power"]["cost"]["hddRead"].as<double>(0.25), (double) 0) / 1024;
+		AurumConfig.gpuSetCost = std::max(root["power"]["cost"]["gpuSet"].as<double>(2.0), (double) 0) / AurumConfig_t::basicScreenPixels;
+		AurumConfig.gpuFillCost = std::max(root["power"]["cost"]["gpuFill"].as<double>(1.0), (double) 0) / AurumConfig_t::basicScreenPixels;
+		AurumConfig.gpuClearCost = std::max(root["power"]["cost"]["gpuClear"].as<double>(0.1), (double) 0) / AurumConfig_t::basicScreenPixels;
+		AurumConfig.gpuCopyCost = std::max(root["power"]["cost"]["gpuCopy"].as<double>(0.25), (double) 0) / AurumConfig_t::basicScreenPixels;
+		AurumConfig.eepromWriteCost = std::max(root["power"]["cost"]["eepromWrite"].as<double>(50), (double) 0);
+		AurumConfig.hddSizes = root["filesystem"]["hddSizes"].as<std::array<size_t, 3>>(std::array<size_t, 3> {1024, 2048, 4096});
+		AurumConfig.maxHandles = std::max(root["filesystem"]["maxHandles"].as<double>(16), (double) 0);
+		AurumConfig.maxReadBuffer = std::max(root["filesystem"]["maxReadBuffer"].as<double>(2048), (double) 0);
+		if (root["machines"].IsSequence()) {
+				AurumConfig.machines.clear();
+				for (YAML::Node machineNode : root["machines"]) {
+						Machine* machine = new Machine;
+						machine->load(machineNode);
+						AurumConfig.machines.push_back(machine);
 				}
-		} catch (...) {
-				machines.clear();
-				logW("Failed getting machines and components; using default");
+		} else {
 				Machine* machine = new Machine;
-				machine->load(boost::uuids::to_string(uuid_generator()));
-				CPU* cpu = new CPU;
-				cpu->load(1, "Lua 5.3");
-				machine->addComponent(cpu);
-				RAM* ram = new RAM;
-				ram->load(1);
-				machine->addComponent(ram);
-				EEPROM* eeprom = new EEPROM;
-				eeprom->load(boost::uuids::to_string(uuid_generator()), "EEPROM", false);
-				machine->addComponent(eeprom);
-				FileSystem* filesystem = new FileSystem;
-				filesystem->load(boost::uuids::to_string(uuid_generator()), 1, "Filesystem", false);
-				machine->addComponent(filesystem);
-				machines.push_back(machine);
+				YAML::Node machineNode;
+				YAML::Node cpu;
+				cpu["type"] = "cpu";
+				machineNode["components"].push_back(cpu);
+				YAML::Node ram;
+				ram["type"] = "ram";
+				machineNode["components"].push_back(ram);
+				YAML::Node eeprom;
+				eeprom["type"] = "eeprom";
+				machineNode["components"].push_back(eeprom);
+				YAML::Node gpu;
+				gpu["type"] = "gpu";
+				machineNode["components"].push_back(gpu);
+				YAML::Node screen;
+				screen["type"] = "screen";
+				machineNode["components"].push_back(screen);
+				YAML::Node filesystem;
+				filesystem["type"] = "filesystem";
+				machineNode["components"].push_back(filesystem);
+				machine->load(machineNode);
+				AurumConfig.machines.push_back(machine);
 		}
 }
 
-std::string AurumConfigToYAML(std::vector<Machine*>& machines) {
+std::string AurumConfigToYAML() {
+		logC("AurumConfigToYAML()");
 		YAML::Node root;
 		root["logging"]["call"] = AurumConfig.logging_call;
 		root["logging"]["debug"] = AurumConfig.logging_debug;
-		for (Machine* machine :machines) {
-				YAML::Node node;
-				std::string address;
-				machine->save(address);
-				node["address"] = address;
-				for (Component* component :machine->components()) {
-						if (component->type() == AurumDebug::TYPE) {
-								AurumDebug* aurum_debug = (AurumDebug*) component;
-								std::string address;
-								aurum_debug->save(address);
-								YAML::Node entry;
-								entry["type"] = AurumDebug::TYPE;
-								entry["address"] = address;
-								node["components"].push_back(entry);
-						} else if (component->type() == CPU::TYPE) {
-								CPU* cpu = (CPU*) component;
-								int tier;
-								std::string arch;
-								cpu->save(tier, arch);
-								YAML::Node entry;
-								entry["type"] = CPU::TYPE;
-								entry["tier"] = tier;
-								entry["arch"] = arch;
-								node["components"].push_back(entry);
-						} else if (component->type() == RAM::TYPE) {
-								RAM* ram = (RAM*) component;
-								int tier;
-								ram->save(tier);
-								YAML::Node entry;
-								entry["type"] = RAM::TYPE;
-								entry["tier"] = tier;
-								node["components"].push_back(entry);
-						} else if (component->type() == EEPROM::TYPE) {
-								EEPROM* eeprom = (EEPROM*) component;
-								std::string address;
-								std::string label;
-								bool ro;
-								eeprom->save(address, label, ro);
-								YAML::Node entry;
-								entry["type"] = EEPROM::TYPE;
-								entry["address"] = address;
-								entry["label"] = label;
-								entry["read-only"] = ro;
-								node["components"].push_back(entry);
-						} else if (component->type() == FileSystem::TYPE) {
-								FileSystem* filesystem = (FileSystem*) component;
-								std::string address;
-								int tier;
-								std::optional<std::string> label;
-								bool ro;
-								filesystem->save(address, tier, label, ro);
-								YAML::Node entry;
-								entry["type"] = FileSystem::TYPE;
-								entry["address"] = address;
-								entry["tier"] = tier;
-								if (label) {
-										entry["label"] = label.value();
-								}
-								entry["read-only"] = ro;								node["components"].push_back(entry);
-						}
-				}
-				root["machines"].push_back(node);
-		}
 		root["computer"]["threads"] = AurumConfig.threads;
 		root["computer"]["timeout"] = AurumConfig.timeout;
+		root["computer"]["startupDelay"] = AurumConfig.startupDelay;
 		root["computer"]["allowBytecode"] = AurumConfig.allowBytecode;
 		root["computer"]["allowGC"] = AurumConfig.allowGC;
 		root["computer"]["eepromSize"] = AurumConfig.eepromSize;
 		root["computer"]["eepromDataSize"] = AurumConfig.eepromDataSize;
-		root["computer"]["startupDelay"] = AurumConfig.startupDelay;
 		root["computer"]["cpuComponentCount"] = AurumConfig.cpuComponentCount;
-		root["computer"]["callBudgest"] = AurumConfig.callBudgets;
+		root["computer"]["callBudgets"] = AurumConfig.callBudgets;
 		root["computer"]["ramSizes"] = AurumConfig.ramSizes;
-		root["power"]["ingnorePower"] = AurumConfig.ignorePower;
+		root["power"]["ignorePower"] = AurumConfig.ignorePower;
 		root["power"]["tickFrequency"] = AurumConfig.tickFrequency;
 		root["power"]["cost"]["computer"] = AurumConfig.computerCost;
 		root["power"]["cost"]["sleepFactor"] = AurumConfig.sleepCostFactor;
-		root["power"]["cost"]["hddRead"] = AurumConfig.hddReadCost;
-		root["power"]["cost"]["hddWrite"] = AurumConfig.hddWriteCost;
+		root["power"]["cost"]["hddRead"] = AurumConfig.hddReadCost * 1024;
+		root["power"]["cost"]["hddWrite"] = AurumConfig.hddWriteCost * 1024;
+		root["power"]["cost"]["gpuSet"] = AurumConfig.gpuSetCost * AurumConfig_t::basicScreenPixels;
+		root["power"]["cost"]["gpuFill"] = AurumConfig.gpuFillCost * AurumConfig_t::basicScreenPixels;
+		root["power"]["cost"]["gpuClear"] = AurumConfig.gpuClearCost * AurumConfig_t::basicScreenPixels;
+		root["power"]["cost"]["gpuCopy"] = AurumConfig.gpuCopyCost * AurumConfig_t::basicScreenPixels;
 		root["power"]["cost"]["eepromWrite"] = AurumConfig.eepromWriteCost;
 		root["filesystem"]["hddSizes"] = AurumConfig.hddSizes;
-		root["filesystem"]["openHandles"] = AurumConfig.maxOpenHandles;
+		root["filesystem"]["maxHandles"] = AurumConfig.maxHandles;
 		root["filesystem"]["maxReadBuffer"] = AurumConfig.maxReadBuffer;
+		for (Machine* machine : AurumConfig.machines) {
+				YAML::Node machineNode;
+				machine->save(machineNode);
+				root["machines"].push_back(machineNode);
+		}
 		YAML::Emitter emitter;
 		emitter << root;
 		return emitter.c_str();

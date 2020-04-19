@@ -1,32 +1,39 @@
 #include <string.h>
 #include <fstream>
 #include <sstream>
+#include <signal.h>
+
 
 #include "log.h"
 #include "config.h"
 #include "machine.h"
 
-#define VERSION "0.0.2.2"
+#define VERSION "0.2.0.0"
 
-#define AURUM_DEFAULT_PATH "/home/Git/AurumEmulator/Env/"//"~/AurumEmulator/"
+std::ofstream logFile;
+
+#define AURUM_DEFAULT_PATH std::string(getenv("HOME")) + "/AurumEmulator/"
 
 void help() {
 		_log("Help: ");
 		_log(" Options: ");
-		_log("  -h -- display this help")
+		_log("  -h -- display this help");
 		_log("  --force-call=true|false -- ignore config call log option");
 		_log("  --force-debug=true|false -- ignore config debug log option");
-		_log("  --path=<path> -- set emulator work path; default - ~/AurumEmulator/");
+		_log("  --path=<path> -- set emulator work path; default - <HOME>/AurumEmulator/");
 }
+
+void interuptHandler(int dummy) {
+	for (Machine* machine : AurumConfig.machines) {
+		machine->close();
+	}
+}
+
+
 
 int main(int argc, char** argv) {
 
-		_log("Aurum Emulator / Zabqer / " VERSION);
-		
 		AurumConfig.envPath = AURUM_DEFAULT_PATH;
-
-		bool* forcecall = NULL;
-		bool* forcedebug = NULL;
 
 		for (int i = 1; i < argc; i++) {
 				std::string arg = std::string(argv[i]);
@@ -36,9 +43,9 @@ int main(int argc, char** argv) {
 						std::string value = (pos + 1) != 0 ? arg.substr(pos + 1) : "";
 						if (option == "force-call") {
 								if (value == "true") {
-										forcecall = new bool(true);
+										AurumConfig.force_logging_call = new bool(true);
 								} else if (value == "false") {
-										forcecall = new bool(false);
+										AurumConfig.force_logging_call = new bool(false);
 								} else {
 										logE("Wrong option value: " << option << " = " << value);
 										help();
@@ -46,9 +53,9 @@ int main(int argc, char** argv) {
 								}
 						} else if (option == "force-debug") {
 								if (value == "true") {
-										forcedebug = new bool(true);
+										AurumConfig.force_logging_debug = new bool(true);
 								} else if (value == "false") {
-										forcedebug = new bool(false);
+										AurumConfig.force_logging_debug = new bool(false);
 								} else {
 										logE("Wrong option value: " << option << " = " << value);
 										help();
@@ -79,42 +86,51 @@ int main(int argc, char** argv) {
 						return 1;
 				}
 		}
+		
+		logFile = std::ofstream(AurumConfig.envPath + "/log.txt", std::ios::out);
 
+		_log("Aurum Emulator / Zabqer / " VERSION);
+		
 		std::string configPath = AurumConfig.envPath + "/Config.yaml";
-
-		std::vector<Machine*> machines;
+		
+		logD("Loading configuration");
 
 		std::ifstream ic(configPath);
 		if (ic.is_open()) {
 				std::stringstream iss;
 				iss << ic.rdbuf();
-				AurumConfigFromYAML(iss.str(), machines, forcecall, forcedebug);
+				AurumConfigFromYAML(iss.str());
 				ic.close();
 		} else {
-				AurumConfigFromYAML("", machines, forcecall, forcedebug);
+				AurumConfigFromYAML("");
 		}
 
-		delete forcecall;
-		delete forcedebug;
+		signal(SIGINT, interuptHandler);
+		
+		logD("Starting machines");
 				
-		for (Machine* machine :machines) {
+		for (Machine* machine : AurumConfig.machines) {
 				machine->start();
 		}
+		
+		logD("Entering to update loop");
 
-		clock_t deadline = 0;
-		clock_t nextsave = 0;
+		clock_t deadline = clock();
+		clock_t nextsave = clock();
 		AurumConfig.changed = true;
-		while (machines.size() > 0) {
-				if (nextsave <= clock() || machines.size() == 0) {
+		size_t works = AurumConfig.machines.size();
+		while (works) {
+				if (nextsave <= clock()) {
 						nextsave = clock() + 1000000;
 						if (AurumConfig.changed) {
-								logD("Saving config...")
+								logD("Saving config...");
 								std::ofstream oc(configPath);
 								if (oc.is_open()) {
 										std::stringstream oss;
-										oss << AurumConfigToYAML(machines);
+										oss << AurumConfigToYAML();
 										oc << oss.rdbuf();
 										oc.close();
+										logD("Config saved");
 								} else {
 										logW("Can't open config file for write: " << configPath);
 								}
@@ -122,14 +138,20 @@ int main(int argc, char** argv) {
 						}
 				}
 				if (deadline <= clock()) {
-						deadline = clock() + 1000000 / 20;
-						for (Machine* machine :machines) {
-								machine->update();
+						deadline = clock() + 1000000 / AurumConfig.tickFrequency;
+						works = 0;
+						for (Machine* machine : AurumConfig.machines) {
+								if (machine->isRunning()) {
+									machine->update();
+									works++;	
+								} else if (machine->isCrashed()) {
+									works++;
+								}
 						}
 				}
 		}
 
 		logD("All machines dead; exiting");
-
+		
 		return 0;
 }

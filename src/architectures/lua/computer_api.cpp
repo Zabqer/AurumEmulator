@@ -1,4 +1,5 @@
 #include "computer_api.h"
+#include "../../machine.h"
 #include "api.h"
 #include "../../log.h"
 #include "lua2c.h"
@@ -7,7 +8,7 @@
 
 API(computer_realtime) {
 		logC("ComputerAPI::realTime()");
-		lua.pushNumber(std::chrono::time_point_cast<std::chrono::seconds>(std::chrono::system_clock::now()).time_since_epoch().count());
+		lua.pushNumber(time(NULL));
 		return 1;
 }
 

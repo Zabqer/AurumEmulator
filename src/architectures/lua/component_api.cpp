@@ -90,6 +90,7 @@ API(component_invoke) {
 				c2lua(lua, args);
 				return lua.getTop();
 		} catch (limit_reached) {
+				logD("Limit reached!");
 				return 0;
 		} catch (std::invalid_argument& ex) {
 				lua.pushBoolean(false);

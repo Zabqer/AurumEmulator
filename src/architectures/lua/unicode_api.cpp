@@ -1,15 +1,20 @@
 #include "unicode_api.h"
 #include "api.h"
 #include "../../log.h"
-#include <boost/locale.hpp>
+#include "../../utils/font.h"
 
-std::string
- fromUTF16(std::u16string str) {
-		return boost::locale::conv::utf_to_utf<char>(str);
+#include <locale>
+#include <codecvt>
+#include <algorithm>
+
+static std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
+
+std::string fromUTF16(std::u16string str) {
+		return convert.to_bytes(str);
 }
 
 std::u16string toUTF16(std::string str) {
-		return boost::locale::conv::utf_to_utf<char16_t>(str);
+		return convert.from_bytes(str);
 }
 
 API(unicode_char) {
@@ -33,13 +38,17 @@ API(unicode_len) {
 
 API(unicode_lower) {
 		logC("UnicodeAPI::lower()");
-		
+		std::u16string str = toUTF16(lua.checkString(1));
+		std::transform(str.begin(), str.end(), str.begin(), tolower);
+		lua.pushString(fromUTF16(str));
 		return 1;
 }
 
 API(unicode_reverse) {
 		logC("UnicodeAPI::reverse()");
-		
+		std::u16string str = toUTF16(lua.checkString(1));
+		std::reverse(str.begin(), str.end());
+		lua.pushString(fromUTF16(str));
 		return 1;
 }
 
@@ -66,7 +75,7 @@ API(unicode_sub) {
 		if (to <= at) {
 				lua.pushString("");
 		} else {
-				result = result.substr(at, to);
+				result = result.substr(at, to - at);
 				lua.pushString(fromUTF16(result));
 		}
 		return 1;
@@ -74,32 +83,58 @@ API(unicode_sub) {
 
 API(unicode_upper) {
 		logC("UnicodeAPI::upper()");
-		
-		return 0;
+		std::u16string str = toUTF16(lua.checkString(1));
+		std::transform(str.begin(), str.end(), str.begin(), toupper);
+		lua.pushString(fromUTF16(str));
+		return 1;
+}
+
+static size_t chlen(char16_t ch) {
+		if (!fontBitmap.count(ch)) {
+				return 0;
+		} else {
+				return fontBitmap[ch].size() / 8 / 16;
+		}
 }
 
 API(unicode_isWide) {
 		logC("UnicodeAPI::isWide()");
-		
-		return 0;
+		lua.pushBoolean(chlen(toUTF16(lua.checkString(1))[0]) > 1);
+		return 1;
 }
 
 API(unicode_charWidth) {
 		logC("UnicodeAPI::charWidth()");
-		
-		return 0;
+		lua.pushInteger(chlen(toUTF16(lua.checkString(1))[0]));
+		return 1;
 }
 
 API(unicode_wlen) {
 		logC("UnicodeAPI::wlen()");
-		
-		return 0;
+		std::u16string str = toUTF16(lua.checkString(1));
+		size_t size = 0;
+		for (const char16_t& ch : str) {
+				size += std::max((size_t) 1, chlen(ch));
+		}
+		lua.pushInteger(size);
+		return 1;
 }
 
 API(unicode_wtrunc) {
 		logC("UnicodeAPI::wtrunc()");
-		
-		return 0;
+		std::u16string str = toUTF16(lua.checkString(1));
+		int count = std::max((Lua::Integer) 0, lua.checkInteger(2));
+		int i = 0;
+		size_t width = 0;
+		while (width <= count) {
+				width += std::max((size_t) 1, chlen(str[i++]));
+		}
+		if (i > 1) {
+				lua.pushString(fromUTF16(str.substr(0, i - 1)));
+		} else {
+				lua.pushString("");
+		}
+		return 1;
 }
 
 void loadUnicodeAPI(Lua lua) {
